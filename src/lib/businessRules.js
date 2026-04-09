@@ -1,17 +1,23 @@
 import { getWeekBoundaries, nowInChicago } from './dateUtils.js'
 
-/** Returns { weekStart, weekEnd } in America/Chicago */
 export { getWeekBoundaries }
 
-/**
- * Count checked_in reservations for a user this week.
- * @param {Array} reservations - reservations with status and session.date
- */
+export const TABLE_NAMES = ['East', 'South', 'West', 'North', 'Center']
+
+export function getTableForSeat(seatNumber) {
+  const tableIndex = Math.floor((seatNumber - 1) / 8)
+  const seatPosition = ((seatNumber - 1) % 8)
+  return {
+    tableName: TABLE_NAMES[tableIndex],
+    tableIndex,
+    seatPosition,
+  }
+}
+
 export function countCheckedInPlaysThisWeek(reservations) {
   const { weekStart, weekEnd } = getWeekBoundaries()
   return reservations.filter(r => {
     if (r.status !== 'checked_in') return false
-    // Use the session date or reserved_at to determine week
     const date = r.sessions?.date
       ? new Date(r.sessions.date + 'T00:00:00')
       : new Date(r.reserved_at)
@@ -19,21 +25,43 @@ export function countCheckedInPlaysThisWeek(reservations) {
   }).length
 }
 
-/**
- * Should we flag this reservation as an overage?
- * @param {string} membershipType - 'subscriber' | 'walk_in'
- * @param {number} checkedInCount - current checked_in count this week
- */
+// Membership tier definitions
+export const MEMBERSHIP_TIERS = {
+  unlimited: {
+    key: 'unlimited',
+    name: 'Dragon Pass',
+    tagline: 'Unlimited play, anytime',
+    price: 100,
+    priceLabel: '$100 / month',
+    weeklyLimit: null,
+    color: 'navy',
+  },
+  subscriber: {
+    key: 'subscriber',
+    name: 'Wind Pass',
+    tagline: '3 sessions per week',
+    price: 50,
+    priceLabel: '$50 / month',
+    weeklyLimit: 3,
+    color: 'teal',
+  },
+  walk_in: {
+    key: 'walk_in',
+    name: 'Bamboo',
+    tagline: 'Drop in anytime — pay per session',
+    price: 20,
+    priceLabel: '$20 / session',
+    weeklyLimit: null,
+    color: 'muted',
+  },
+}
+
 export function shouldFlagOverage(membershipType, checkedInCount) {
+  // Only Wind Pass (subscriber) has a weekly limit
   if (membershipType !== 'subscriber') return false
   return checkedInCount >= 3
 }
 
-/**
- * Is the current time within the valid check-in window?
- * Window: session start_time up to start_time + 15 minutes
- * @param {Object} session - { date, start_time }
- */
 export function isWithinCheckinWindow(session) {
   const now = nowInChicago()
   const sessionStart = new Date(`${session.date}T${session.start_time}`)
@@ -41,10 +69,6 @@ export function isWithinCheckinWindow(session) {
   return now >= sessionStart && now <= windowEnd
 }
 
-/**
- * Build the reservation insert payload.
- * @param {Object} params
- */
 export function buildReservationPayload({ userId, sessionId, seatId, membershipType, isFlaggedOverage, isWalkIn = false }) {
   return {
     user_id: userId,
@@ -57,4 +81,8 @@ export function buildReservationPayload({ userId, sessionId, seatId, membershipT
     checked_in_at: isWalkIn ? new Date().toISOString() : null,
     reserved_at: new Date().toISOString(),
   }
+}
+
+export function getEventRsvpStatus(confirmedCount, capacity) {
+  return confirmedCount < capacity ? 'confirmed' : 'waitlisted'
 }

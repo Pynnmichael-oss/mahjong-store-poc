@@ -8,18 +8,12 @@ export function useSeats(sessionId) {
 
   useEffect(() => {
     if (!sessionId) return
-    fetchSeatsBySession(sessionId)
-      .then(setSeats)
-      .catch(setError)
-      .finally(() => setLoading(false))
+    fetchSeatsBySession(sessionId).then(setSeats).catch(setError).finally(() => setLoading(false))
   }, [sessionId])
 
   function refreshSeats() {
-    setLoading(true)
-    fetchSeatsBySession(sessionId)
-      .then(setSeats)
-      .catch(setError)
-      .finally(() => setLoading(false))
+    if (!sessionId) return
+    fetchSeatsBySession(sessionId).then(setSeats).catch(setError)
   }
 
   return { seats, loading, error, refreshSeats }

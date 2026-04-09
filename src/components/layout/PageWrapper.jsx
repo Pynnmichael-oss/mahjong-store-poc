@@ -1,13 +1,16 @@
 import Header from './Header.jsx'
 
-export default function PageWrapper({ children, title }) {
+export default function PageWrapper({ children, noPad = false }) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-warm-white">
       <Header />
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        {title && <h1 className="text-2xl font-bold text-gray-900 mb-6">{title}</h1>}
-        {children}
-      </main>
+      <div className="pt-16">
+        {noPad ? children : (
+          <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+            {children}
+          </main>
+        )}
+      </div>
     </div>
   )
 }

@@ -1,10 +1,9 @@
-import Alert from '../ui/Alert.jsx'
-
 export default function OverageFlagBanner({ checkedInCount }) {
   return (
-    <Alert type="warning">
-      <strong>Weekly limit reached.</strong> You've used {checkedInCount} of 3 play sessions this week.
-      You can still reserve, but this reservation will be flagged as an overage.
-    </Alert>
+    <div className="bg-gold-light border border-gold/30 rounded-2xl px-5 py-4">
+      <p className="font-cormorant italic text-navy text-base leading-relaxed">
+        You've used {checkedInCount} of 3 plays this week — a walk-in fee applies at the door. You may still reserve your seat.
+      </p>
+    </div>
   )
 }

@@ -1,3 +1,66 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --navy:       #1a3a6b;
+  --navy-deep:  #0f2347;
+  --sky:        #b8d4f5;
+  --sky-mid:    #7aaee0;
+  --sky-light:  #e6f1fb;
+  --sky-pale:   #f0f6fd;
+  --gold:       #c9a84c;
+  --gold-light: #f0e6c8;
+  --cream:      #faf8f3;
+  --warm-white: #fffef9;
+  --text:       #1a1a2e;
+  --text-mid:   #4a5568;
+  --text-soft:  #8a9bb0;
+}
+
+@layer base {
+  body {
+    @apply bg-warm-white text-text font-sans;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-playfair;
+  }
+}
+
+@layer utilities {
+  .fade-up {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatTile {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  95% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-200px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.floating-tile {
+  animation: floatTile linear infinite;
+  position: absolute;
+  border-radius: 8px;
+  background: rgba(184, 212, 245, 0.06);
+  border: 1px solid rgba(184, 212, 245, 0.12);
+}

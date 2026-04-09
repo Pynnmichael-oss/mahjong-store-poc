@@ -1,0 +1,153 @@
+import { useState } from 'react'
+import PageWrapper from '../../components/layout/PageWrapper.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
+import { useUserReservations } from '../../hooks/useReservations.js'
+import { useWeeklyLimit } from '../../hooks/useWeeklyLimit.js'
+import { supabase } from '../../services/supabase.js'
+import { MEMBERSHIP_TIERS } from '../../lib/businessRules.js'
+import Alert from '../../components/ui/Alert.jsx'
+import FadeUp from '../../components/ui/FadeUp.jsx'
+
+export default function ProfilePage() {
+  const { user, profile } = useAuth()
+  const { reservations } = useUserReservations(user?.id)
+  const { checkedInCount, isOverLimit } = useWeeklyLimit(reservations, profile?.membership_type)
+
+  const [editName, setEditName] = useState(profile?.full_name ?? '')
+  const [nameChanged, setNameChanged] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState(null)
+
+  function handleNameChange(e) {
+    setEditName(e.target.value)
+    setNameChanged(e.target.value !== profile?.full_name)
+  }
+
+  async function handleSaveName() {
+    setSaving(true)
+    const { error } = await supabase.from('profiles').update({ full_name: editName }).eq('id', user.id)
+    setSaving(false)
+    if (error) {
+      setSaveMsg({ type: 'error', text: error.message })
+    } else {
+      setSaveMsg({ type: 'success', text: 'Name updated!' })
+      setNameChanged(false)
+    }
+    setTimeout(() => setSaveMsg(null), 3000)
+  }
+
+  const membershipType = profile?.membership_type ?? 'walk_in'
+  const tier = MEMBERSHIP_TIERS[membershipType] ?? MEMBERSHIP_TIERS.walk_in
+  const isWindPass = membershipType === 'subscriber'
+  const isDragonPass = membershipType === 'unlimited'
+  const playsMax = 3
+  const progressPct = isWindPass ? Math.min((checkedInCount / playsMax) * 100, 100) : 100
+
+  const memberSince = profile?.created_at
+    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : '—'
+
+  return (
+    <PageWrapper noPad>
+      {/* Navy hero */}
+      <div className="bg-navy px-4 sm:px-6 py-10">
+        <div className="max-w-6xl mx-auto">
+          <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky/60 mb-2">Account</p>
+          <h1 className="font-playfair text-3xl text-sky">{profile?.full_name ?? 'My Profile'}</h1>
+          <p className="font-cormorant italic text-sky/60 mt-1">{tier.tagline}</p>
+        </div>
+      </div>
+
+      <div className="max-w-md mx-auto px-4 sm:px-6 py-8 space-y-5">
+
+        {/* Name */}
+        <FadeUp>
+          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-3">Full Name</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={editName}
+                onChange={handleNameChange}
+                className="flex-1 border-0 border-b border-navy/20 bg-transparent pb-1 font-playfair text-xl text-navy focus:outline-none focus:border-navy transition-colors"
+                style={{ fontSize: '20px' }}
+              />
+              {nameChanged && (
+                <button
+                  onClick={handleSaveName}
+                  disabled={saving}
+                  className="px-4 py-1.5 rounded-full font-sans text-xs font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              )}
+            </div>
+            {saveMsg && <Alert type={saveMsg.type} className="mt-3">{saveMsg.text}</Alert>}
+          </div>
+        </FadeUp>
+
+        {/* Email */}
+        <FadeUp delay={50}>
+          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-3">Email</label>
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-text-soft flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <p className="font-sans text-text-mid text-sm">{profile?.email ?? user?.email ?? '—'}</p>
+            </div>
+          </div>
+        </FadeUp>
+
+        {/* Membership */}
+        <FadeUp delay={100}>
+          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-3">Membership</label>
+            <div className="flex items-center gap-3 mb-3">
+              <span className={`inline-flex items-center px-4 py-1.5 rounded-full font-sans text-xs font-medium ${
+                membershipType === 'subscriber' ? 'bg-navy text-sky' : 'bg-cream text-navy border border-navy/20'
+              }`}>
+                {tier.name}
+              </span>
+              <span className="font-sans text-sm text-text-soft">{tier.priceLabel}</span>
+            </div>
+            <p className="font-cormorant italic text-text-mid text-base">Member since {memberSince}</p>
+          </div>
+        </FadeUp>
+
+        {/* Weekly plays */}
+        <FadeUp delay={150}>
+          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-4">This Week</label>
+            {isWindPass ? (
+              <>
+                <div className="flex justify-between font-sans text-sm mb-2">
+                  <span className="text-text-mid">{checkedInCount} of {playsMax} plays used</span>
+                  <span className={isOverLimit ? 'text-gold font-medium' : 'text-sky-mid font-medium'}>
+                    {isOverLimit ? 'Limit reached' : `${playsMax - checkedInCount} remaining`}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-sky-pale rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${isOverLimit ? 'bg-gold' : 'bg-navy'}`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                {isOverLimit && (
+                  <p className="font-cormorant italic text-navy text-base mt-4 leading-relaxed bg-gold-light rounded-xl px-4 py-3">
+                    You've reached your weekly limit. A walk-in fee applies at the door.
+                  </p>
+                )}
+              </>
+            ) : isDragonPass ? (
+              <p className="font-cormorant italic text-sky-mid text-lg">Unlimited plays — no weekly limits.</p>
+            ) : (
+              <p className="font-cormorant italic text-text-mid text-lg">Unlimited plays — walk-in rates apply per session.</p>
+            )}
+          </div>
+        </FadeUp>
+
+      </div>
+    </PageWrapper>
+  )
+}

@@ -6,7 +6,7 @@ export async function fetchUpcomingSessions() {
     .from('sessions')
     .select('*')
     .gte('date', today)
-    .in('status', ['open', 'active'])
+    .eq('status', 'open')
     .order('date', { ascending: true })
     .order('start_time', { ascending: true })
   if (error) throw error

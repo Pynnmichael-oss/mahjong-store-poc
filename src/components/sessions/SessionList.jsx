@@ -3,7 +3,7 @@ import EmptyState from '../ui/EmptyState.jsx'
 
 export default function SessionList({ sessions, showReserveButton = false }) {
   if (!sessions.length) {
-    return <EmptyState title="No sessions available" description="Check back soon for upcoming sessions." />
+    return <EmptyState message="No sessions scheduled yet. Check back soon." />
   }
   return (
     <div className="space-y-3">

@@ -1,35 +1,36 @@
 import { useState } from 'react'
 import Button from '../ui/Button.jsx'
 
-/**
- * QR scan input: employee scans/types a QR value and submits it.
- * QR value format: "userId:sessionId"
- */
-export default function QRScanInput({ sessionId, onScan, disabled }) {
-  const [value, setValue] = useState('')
+export default function QRScanInput({ sessionId, onScan, onMemberNumber, disabled }) {
+  const [input, setInput] = useState('')
 
   function handleSubmit(e) {
     e.preventDefault()
-    if (!value.trim()) return
-    // Parse "userId:sessionId" or just userId if scanned differently
-    const parts = value.trim().split(':')
-    const userId = parts[0]
-    onScan(userId, sessionId)
-    setValue('')
+    const val = input.trim()
+    if (!val) return
+    // If it looks like a UUID, treat as QR scan; otherwise treat as member number
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}/i.test(val)
+    if (isUuid) {
+      onScan(val, sessionId)
+    } else {
+      onMemberNumber(val, sessionId)
+    }
+    setInput('')
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
+    <form onSubmit={handleSubmit} className="flex gap-3">
       <input
         type="text"
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        placeholder="Scan or paste QR code..."
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        placeholder="Scan or enter QR code / member ID..."
         disabled={disabled}
-        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         autoFocus
+        className="flex-1 bg-white border border-navy/20 rounded-full px-5 py-3 text-base font-sans text-navy placeholder:text-text-soft focus:outline-none focus:ring-2 focus:ring-sky-mid focus:border-sky-mid min-h-[52px]"
+        style={{ fontSize: '16px' }}
       />
-      <Button type="submit" disabled={disabled || !value.trim()}>
+      <Button type="submit" disabled={disabled || !input.trim()} size="lg">
         Check In
       </Button>
     </form>

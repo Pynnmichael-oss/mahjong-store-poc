@@ -1,30 +1,35 @@
-const STATUS_STYLES = {
-  confirmed: 'bg-blue-100 text-blue-700',
-  checked_in: 'bg-green-100 text-green-700',
-  no_show: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-600',
-  walk_in: 'bg-purple-100 text-purple-700',
-  open: 'bg-green-100 text-green-700',
-  active: 'bg-blue-100 text-blue-700',
-  closed: 'bg-gray-100 text-gray-600',
+const STYLES = {
+  confirmed:  'bg-sky-light text-navy',
+  checked_in: 'bg-sky-mid text-white',
+  no_show:    'bg-red-100 text-red-700',
+  cancelled:  'bg-gray-100 text-text-mid',
+  walk_in:    'bg-navy text-sky',
+  open:       'bg-sky-light text-navy',
+  closed:     'bg-gray-100 text-text-mid',
+  upcoming:   'bg-sky-light text-navy',
+  completed:  'bg-gray-100 text-text-mid',
+  full:       'bg-gold-light text-navy',
 }
 
-const STATUS_LABELS = {
-  confirmed: 'Confirmed',
+const LABELS = {
+  confirmed:  'Confirmed',
   checked_in: 'Checked In',
-  no_show: 'No Show',
-  cancelled: 'Cancelled',
-  walk_in: 'Walk-In',
-  open: 'Open',
-  active: 'Active',
-  closed: 'Closed',
+  no_show:    'No Show',
+  cancelled:  'Cancelled',
+  walk_in:    'Walk-In',
+  open:       'Open',
+  closed:     'Closed',
+  upcoming:   'Upcoming',
+  completed:  'Completed',
+  full:       'Full',
 }
 
-export default function Badge({ status, label, className = '' }) {
-  const style = STATUS_STYLES[status] || 'bg-gray-100 text-gray-600'
-  const text = label ?? STATUS_LABELS[status] ?? status
+export default function Badge({ status, label, variant, children, className = '' }) {
+  const key = status || variant || 'default'
+  const style = STYLES[key] ?? 'bg-sky-light text-navy'
+  const text = children ?? label ?? LABELS[key] ?? key
   return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${style} ${className}`}>
+    <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${style} ${className}`}>
       {text}
     </span>
   )

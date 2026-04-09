@@ -13,7 +13,6 @@ export async function createReservation(payload) {
     }
     throw error
   }
-  // Update seat status to reserved (or occupied for walk-in)
   await updateSeatStatus(payload.seat_id, payload.is_walk_in ? 'occupied' : 'reserved')
   return data
 }
@@ -34,17 +33,6 @@ export async function fetchSessionReservations(sessionId) {
     .select('*, profiles(*), seats(*)')
     .eq('session_id', sessionId)
     .order('reserved_at', { ascending: true })
-  if (error) throw error
-  return data
-}
-
-export async function fetchReservationByQR(userId, sessionId) {
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('*, sessions(*), seats(*)')
-    .eq('user_id', userId)
-    .eq('session_id', sessionId)
-    .single()
   if (error) throw error
   return data
 }

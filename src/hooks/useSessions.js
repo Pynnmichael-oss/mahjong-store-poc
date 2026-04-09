@@ -7,10 +7,7 @@ export function useSessions() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetchUpcomingSessions()
-      .then(setSessions)
-      .catch(setError)
-      .finally(() => setLoading(false))
+    fetchUpcomingSessions().then(setSessions).catch(setError).finally(() => setLoading(false))
   }, [])
 
   return { sessions, loading, error }
@@ -22,10 +19,7 @@ export function useTodaysSessions() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetchTodaysSessions()
-      .then(setSessions)
-      .catch(setError)
-      .finally(() => setLoading(false))
+    fetchTodaysSessions().then(setSessions).catch(setError).finally(() => setLoading(false))
   }, [])
 
   return { sessions, loading, error }
@@ -38,10 +32,7 @@ export function useSession(sessionId) {
 
   useEffect(() => {
     if (!sessionId) return
-    fetchSessionById(sessionId)
-      .then(setSession)
-      .catch(setError)
-      .finally(() => setLoading(false))
+    fetchSessionById(sessionId).then(setSession).catch(setError).finally(() => setLoading(false))
   }, [sessionId])
 
   return { session, loading, error }

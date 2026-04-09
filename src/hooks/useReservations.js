@@ -8,10 +8,7 @@ export function useUserReservations(userId) {
 
   useEffect(() => {
     if (!userId) return
-    fetchUserReservations(userId)
-      .then(setReservations)
-      .catch(setError)
-      .finally(() => setLoading(false))
+    fetchUserReservations(userId).then(setReservations).catch(setError).finally(() => setLoading(false))
   }, [userId])
 
   function refresh() {
@@ -29,10 +26,7 @@ export function useSessionReservations(sessionId) {
 
   useEffect(() => {
     if (!sessionId) return
-    fetchSessionReservations(sessionId)
-      .then(setReservations)
-      .catch(setError)
-      .finally(() => setLoading(false))
+    fetchSessionReservations(sessionId).then(setReservations).catch(setError).finally(() => setLoading(false))
   }, [sessionId])
 
   function refresh() {

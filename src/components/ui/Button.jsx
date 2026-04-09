@@ -1,17 +1,23 @@
-const variants = {
-  primary: 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300',
-  secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:bg-gray-100 disabled:text-gray-400',
-  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
-  ghost: 'text-blue-600 hover:bg-blue-50 disabled:text-gray-300',
-}
+export default function Button({ children, variant = 'primary', size = 'md', className = '', ...props }) {
+  const base = 'inline-flex items-center justify-center rounded-full font-sans font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]'
 
-export default function Button({ children, variant = 'primary', className = '', disabled, ...props }) {
+  const variants = {
+    primary:     'bg-navy text-sky hover:bg-navy-deep',
+    ghost:       'bg-transparent border-[1.5px] border-navy text-navy hover:bg-sky-pale',
+    'ghost-sky': 'bg-transparent border-[1.5px] border-sky text-sky hover:bg-white/10',
+    danger:      'bg-transparent border-[1.5px] border-red-300 text-red-600 hover:bg-red-50',
+    gold:        'bg-gold text-navy-deep hover:opacity-90',
+    secondary:   'bg-cream text-navy border border-navy/20 hover:bg-sky-pale',
+  }
+
+  const sizes = {
+    sm: 'px-4 py-1.5 text-sm min-h-[36px]',
+    md: 'px-6 py-2.5 text-sm',
+    lg: 'px-8 py-3 text-base',
+  }
+
   return (
-    <button
-      className={`inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 ${variants[variant]} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${className}`}
-      disabled={disabled}
-      {...props}
-    >
+    <button className={`${base} ${variants[variant] ?? variants.primary} ${sizes[size]} ${className}`} {...props}>
       {children}
     </button>
   )

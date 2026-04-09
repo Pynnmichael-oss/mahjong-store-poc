@@ -4,14 +4,14 @@ import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 
 export function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return <LoadingSpinner />
+  if (loading) return <div className="min-h-screen bg-sky flex items-center justify-center"><LoadingSpinner /></div>
   if (!user) return <Navigate to="/login" replace />
   return children
 }
 
 export function EmployeeRoute({ children }) {
   const { user, isEmployee, loading } = useAuth()
-  if (loading) return <LoadingSpinner />
+  if (loading) return <div className="min-h-screen bg-sky flex items-center justify-center"><LoadingSpinner /></div>
   if (!user) return <Navigate to="/login" replace />
   if (!isEmployee) return <Navigate to="/dashboard" replace />
   return children
@@ -19,7 +19,7 @@ export function EmployeeRoute({ children }) {
 
 export function PublicOnlyRoute({ children }) {
   const { user, isEmployee, loading } = useAuth()
-  if (loading) return <LoadingSpinner />
+  if (loading) return <div className="min-h-screen bg-sky flex items-center justify-center"><LoadingSpinner /></div>
   if (user) return <Navigate to={isEmployee ? '/employee' : '/dashboard'} replace />
   return children
 }

@@ -1,14 +1,9 @@
 import { QRCodeSVG } from 'qrcode.react'
 
-export default function QRCodeDisplay({ value, size = 220 }) {
+export default function QRCodeDisplay({ value, size = 240 }) {
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-        <QRCodeSVG value={value} size={size} />
-      </div>
-      <p className="text-xs text-gray-400 text-center max-w-xs">
-        Show this QR code to the employee at check-in.
-      </p>
+    <div className="bg-white p-6 rounded-2xl shadow-lg border border-navy/8 inline-flex">
+      <QRCodeSVG value={value || 'no-id'} size={size} fgColor="#1a3a6b" bgColor="#ffffff" />
     </div>
   )
 }
