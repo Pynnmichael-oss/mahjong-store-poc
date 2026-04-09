@@ -5,7 +5,7 @@ export default function SessionCard({ session, showReserveButton = false }) {
   const today = new Date().toISOString().split('T')[0]
   const isToday = session.date === today
 
-  const totalSeats = session.total_seats ?? 40
+  const totalSeats = session.total_seats ?? 32
   const reservedCount = session.reserved_count ?? 0
   const remaining = totalSeats - reservedCount
   const isFull = remaining <= 0
