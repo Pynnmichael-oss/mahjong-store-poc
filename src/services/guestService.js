@@ -35,7 +35,7 @@ export async function createGuestReservation(
     })
 
     try {
-      const { data: smsData, error: smsError } = await supabase.functions.invoke('send-sms', {
+      const response = await supabase.functions.invoke('send-sms', {
         body: {
           phone:       guestPhone,
           guestName:   guestName,
@@ -45,8 +45,16 @@ export async function createGuestReservation(
           seatNumber:  seatNumber,
         },
       })
-      console.log('[SMS] result — data:', smsData)
-      console.log('[SMS] result — error:', smsError)
+
+      console.log('[SMS] full response object:', response)
+      console.log('[SMS] response.error:', response.error)
+      console.log('[SMS] response.data:', response.data)
+
+      if (response.error) {
+        console.log('[SMS] error name:', response.error.name)
+        console.log('[SMS] error message:', response.error.message)
+        console.log('[SMS] error context:', response.error.context)
+      }
     } catch (smsErr) {
       console.log('[SMS] caught error:', smsErr)
     }
