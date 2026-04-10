@@ -23,10 +23,23 @@ export async function createGuestReservation(
     throw error
   }
 
-  // SMS edge function — commented out until core booking is verified
-  // const smsResult = await supabase.functions.invoke('send-sms', {
-  //   body: { phone: guestPhone, guestName, sessionDate, sessionTime, tableName, seatNumber },
-  // })
+  // SMS confirmation
+  console.log('[SMS] payload:', { phone: guestPhone, guestName, sessionDate, sessionTime, tableName, seatNumber })
+  console.log('[SMS] Attempting to invoke send-sms edge function')
+
+  const { data: smsData, error: smsError } = await supabase.functions.invoke('send-sms', {
+    body: {
+      phone:       guestPhone,
+      guestName:   guestName,
+      sessionDate: sessionDate,
+      sessionTime: sessionTime,
+      tableName:   tableName,
+      seatNumber:  seatNumber,
+    },
+  })
+
+  console.log('[SMS] invoke result — data:', smsData)
+  console.log('[SMS] invoke result — error:', smsError)
 
   return { reservation: data }
 }
