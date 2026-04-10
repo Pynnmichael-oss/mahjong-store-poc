@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute, EmployeeRoute, PublicOnlyRoute } from './ProtectedRoute.jsx'
+import LandingPage from '../pages/LandingPage.jsx'
 import LoginPage from '../pages/auth/LoginPage.jsx'
 import SignupPage from '../pages/auth/SignupPage.jsx'
 import DashboardPage from '../pages/customer/DashboardPage.jsx'
@@ -14,12 +15,13 @@ import SessionAttendeesPage from '../pages/employee/SessionAttendeesPage.jsx'
 import EventManagePage from '../pages/employee/EventManagePage.jsx'
 import MembersPage from '../pages/employee/MembersPage.jsx'
 import EmployeeSessionsPage from '../pages/employee/EmployeeSessionsPage.jsx'
+import ReportsPage from '../pages/employee/ReportsPage.jsx'
 
 export default function AppRouter() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route path="/signup" element={<PublicOnlyRoute><SignupPage /></PublicOnlyRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
@@ -34,6 +36,7 @@ export default function AppRouter() {
         <Route path="/employee/sessions/:id" element={<EmployeeRoute><SessionAttendeesPage /></EmployeeRoute>} />
         <Route path="/employee/events" element={<EmployeeRoute><EventManagePage /></EmployeeRoute>} />
         <Route path="/employee/members" element={<EmployeeRoute><MembersPage /></EmployeeRoute>} />
+        <Route path="/employee/reports" element={<EmployeeRoute><ReportsPage /></EmployeeRoute>} />
       </Routes>
     </HashRouter>
   )

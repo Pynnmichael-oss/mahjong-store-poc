@@ -30,7 +30,7 @@ export async function fetchUserReservations(userId) {
 export async function fetchSessionReservations(sessionId) {
   const { data, error } = await supabase
     .from('reservations')
-    .select('*, profiles(*), seats(*)')
+    .select('*, profiles!user_id(*), seats(*)')
     .eq('session_id', sessionId)
     .order('reserved_at', { ascending: true })
   if (error) throw error

@@ -14,21 +14,25 @@ export function AuthProvider({ children }) {
       .select('*')
       .eq('id', userId)
       .single()
+    console.log('[AuthContext] fetchProfile — role:', data?.role ?? 'null', '| error:', error?.message ?? 'none')
     if (!error) setProfile(data)
+    return data?.role
   }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null
+      console.log('[AuthContext] getSession — user:', u?.id ?? 'null')
       setUser(u)
-      if (u) fetchProfile(u.id).finally(() => setLoading(false))
+      if (u) fetchProfile(u.id).finally(() => { console.log('[AuthContext] loading → false'); setLoading(false) })
       else setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null
+      console.log('[AuthContext] onAuthStateChange — event:', _event, '| user:', u?.id ?? 'null')
       setUser(u)
-      if (u) fetchProfile(u.id)
+      if (u) fetchProfile(u.id).then(p => console.log('[AuthContext] profile refetched — role:', p))
       else setProfile(null)
     })
 

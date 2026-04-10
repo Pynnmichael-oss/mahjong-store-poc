@@ -29,9 +29,11 @@ export default function Header() {
   ]
 
   const employeeLinks = [
-    { to: '/employee',        label: 'Dashboard' },
-    { to: '/employee/sessions/today', label: 'Sessions', exact: false },
-    { to: '/employee/events', label: 'Events'    },
+    { to: '/employee',          label: 'Dashboard' },
+    { to: '/employee/sessions', label: 'Sessions'  },
+    { to: '/employee/members',  label: 'Members'   },
+    { to: '/employee/events',   label: 'Events'    },
+    { to: '/employee/reports',  label: 'Reports'   },
   ]
 
   const links = isEmployee ? employeeLinks : customerLinks
