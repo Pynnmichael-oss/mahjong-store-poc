@@ -18,7 +18,7 @@ serve(async (req) => {
 
     const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
     const authToken  = Deno.env.get('TWILIO_AUTH_TOKEN')
-    const fromNumber = Deno.env.get('TWILIO_FROM_NUMBER')
+    const fromNumber = Deno.env.get('TWILIO_PHONE_NUMBER')
 
     console.log('[send-sms] env check — accountSid present:', !!accountSid, '| authToken present:', !!authToken, '| fromNumber:', fromNumber ?? 'MISSING')
 
