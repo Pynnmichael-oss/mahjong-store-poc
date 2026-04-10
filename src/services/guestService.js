@@ -23,23 +23,34 @@ export async function createGuestReservation(
     throw error
   }
 
-  // SMS confirmation
-  console.log('[SMS] payload:', { phone: guestPhone, guestName, sessionDate, sessionTime, tableName, seatNumber })
-  console.log('[SMS] Attempting to invoke send-sms edge function')
-
-  const { data: smsData, error: smsError } = await supabase.functions.invoke('send-sms', {
-    body: {
+  if (data && !error) {
+    console.log('[SMS] reservation succeeded, invoking send-sms')
+    console.log('[SMS] payload being sent:', {
       phone:       guestPhone,
       guestName:   guestName,
       sessionDate: sessionDate,
       sessionTime: sessionTime,
       tableName:   tableName,
       seatNumber:  seatNumber,
-    },
-  })
+    })
 
-  console.log('[SMS] invoke result — data:', smsData)
-  console.log('[SMS] invoke result — error:', smsError)
+    try {
+      const { data: smsData, error: smsError } = await supabase.functions.invoke('send-sms', {
+        body: {
+          phone:       guestPhone,
+          guestName:   guestName,
+          sessionDate: sessionDate,
+          sessionTime: sessionTime,
+          tableName:   tableName,
+          seatNumber:  seatNumber,
+        },
+      })
+      console.log('[SMS] result — data:', smsData)
+      console.log('[SMS] result — error:', smsError)
+    } catch (smsErr) {
+      console.log('[SMS] caught error:', smsErr)
+    }
+  }
 
   return { reservation: data }
 }

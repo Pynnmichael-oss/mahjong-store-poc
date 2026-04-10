@@ -45,6 +45,15 @@ export function useGuestBooking() {
     const sessionTime = `${formatTime(selectedSession.start_time)} – ${formatTime(selectedSession.end_time)}`
 
     try {
+      console.log('[useGuestBooking] call-site values before createGuestReservation:', {
+        sessionDate,
+        sessionTime,
+        tableName:  tableInfo?.tableName,
+        seatNumber: selectedSeat.seat_number,
+        guestName:  guestName.trim(),
+        guestPhone: guestPhone.trim(),
+      })
+
       const { reservation } = await createGuestReservation(
         selectedSession.id,
         selectedSeat.id,
