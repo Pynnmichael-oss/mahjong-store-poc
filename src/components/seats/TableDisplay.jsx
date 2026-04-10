@@ -1,55 +1,70 @@
 import SeatButton from './SeatButton.jsx'
 
-// Positions: [top, right, bottom, left]
-const SEAT_POSITIONS = [
-  { top: 0,    left: '50%', transform: 'translate(-50%, -100%) translateY(-8px)' },
-  { top: '50%',right: 0,   transform: 'translate(100%, -50%) translateX(8px)'  },
-  { bottom: 0, left: '50%', transform: 'translate(-50%, 100%) translateY(8px)'  },
-  { top: '50%',left: 0,    transform: 'translate(-100%, -50%) translateX(-8px)' },
-]
+// Seat order in data: [seat 1, seat 2, seat 3, seat 4] = [top, right, bottom, left]
 
 export default function TableDisplay({ tableName, seats, selectedSeat, onSelect }) {
+  const [top, right, bottom, left] = seats.slice(0, 4)
+
   return (
     <div className="flex flex-col items-center">
-      {/* Outer container — gives room for the seats outside the table surface */}
-      <div className="relative flex items-center justify-center" style={{ width: 200, height: 160 }}>
+      <div className="grid items-center" style={{ gridTemplateColumns: '44px 1fr 44px', gap: '8px' }}>
 
-        {/* Table surface */}
-        <div
-          className="absolute rounded-lg flex items-center justify-center"
-          style={{
-            width: 100,
-            height: 72,
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            background: 'linear-gradient(135deg, #2a5099 0%, #1a3a6b 100%)',
-            boxShadow: '0 4px 16px rgba(26,58,107,0.35)',
-          }}
-        >
-          <span className="font-playfair italic text-sky text-xs leading-tight text-center px-1">
-            {tableName}
-          </span>
-        </div>
-
-        {/* 4 seats — top, right, bottom, left */}
-        {seats.slice(0, 4).map((seat, i) => (
-          <div
-            key={seat.id}
-            className="absolute"
-            style={SEAT_POSITIONS[i]}
-          >
+        {/* Left seat */}
+        <div className="flex items-center justify-center">
+          {left && (
             <SeatButton
-              seat={seat}
-              selected={selectedSeat?.id === seat.id}
+              seat={left}
+              selected={selectedSeat?.id === left.id}
               onSelect={onSelect}
             />
+          )}
+        </div>
+
+        {/* Centre column: top seat → table surface → bottom seat */}
+        <div className="flex flex-col items-center gap-2">
+          {top && (
+            <SeatButton
+              seat={top}
+              selected={selectedSeat?.id === top.id}
+              onSelect={onSelect}
+            />
+          )}
+
+          <div
+            className="rounded-xl flex items-center justify-center px-4 py-3 w-full"
+            style={{
+              background: 'linear-gradient(135deg, #2a5099 0%, #1a3a6b 100%)',
+              boxShadow: '0 4px 16px rgba(26,58,107,0.35)',
+              minHeight: 56,
+            }}
+          >
+            <span className="font-playfair italic text-sky text-xs leading-tight text-center">
+              {tableName}
+            </span>
           </div>
-        ))}
+
+          {bottom && (
+            <SeatButton
+              seat={bottom}
+              selected={selectedSeat?.id === bottom.id}
+              onSelect={onSelect}
+            />
+          )}
+        </div>
+
+        {/* Right seat */}
+        <div className="flex items-center justify-center">
+          {right && (
+            <SeatButton
+              seat={right}
+              selected={selectedSeat?.id === right.id}
+              onSelect={onSelect}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Label + availability */}
-      <p className="font-sans text-xs text-text-soft mt-1">
+      <p className="font-sans text-xs text-text-soft mt-2">
         {seats.filter(s => s.status === 'available').length} open
       </p>
     </div>
