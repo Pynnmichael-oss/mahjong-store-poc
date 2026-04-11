@@ -16,7 +16,13 @@ export default function SignupPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { data, error: authError } = await supabase.auth.signUp({ email, password })
+    const { data, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+      },
+    })
     if (authError) { setError(authError.message); setLoading(false); return }
 
     // Upsert handles the race where the DB trigger may have already created the row
@@ -28,11 +34,13 @@ export default function SignupPage() {
       )
     if (profileError) { setError(profileError.message); setLoading(false); return }
 
-    // Explicit update ensures the name is set even if the trigger already fired with "New User"
-    await supabase
-      .from('profiles')
-      .update({ full_name: fullName })
-      .eq('id', data.user.id)
+    // Safety net: explicit update in case the trigger beat our upsert
+    if (data?.user) {
+      await supabase
+        .from('profiles')
+        .update({ full_name: fullName })
+        .eq('id', data.user.id)
+    }
 
     navigate('/dashboard', { replace: true })
   }
