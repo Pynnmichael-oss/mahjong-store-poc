@@ -15,7 +15,21 @@ export function AuthProvider({ children }) {
       .eq('id', userId)
       .single()
     console.log('[AuthContext] fetchProfile — role:', data?.role ?? 'null', '| error:', error?.message ?? 'none')
-    if (!error) setProfile(data)
+    if (!error) {
+      setProfile(data)
+      if (!data?.full_name || data.full_name === 'New User') {
+        setTimeout(async () => {
+          const { data: refreshed } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single()
+          if (refreshed?.full_name && refreshed.full_name !== 'New User') {
+            setProfile(refreshed)
+          }
+        }, 1000)
+      }
+    }
     return data?.role
   }
 

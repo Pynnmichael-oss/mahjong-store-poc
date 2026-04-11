@@ -18,10 +18,10 @@ export default function SignupPage() {
     setLoading(true)
     const { data, error: authError } = await supabase.auth.signUp({ email, password })
     if (authError) { setError(authError.message); setLoading(false); return }
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id, full_name: fullName, email,
-      role: 'customer', membership_type: 'walk_in', is_active: true,
-    })
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ full_name: fullName })
+      .eq('id', data.user.id)
     if (profileError) { setError(profileError.message); setLoading(false); return }
     navigate('/dashboard', { replace: true })
   }
