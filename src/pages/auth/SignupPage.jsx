@@ -18,11 +18,22 @@ export default function SignupPage() {
     setLoading(true)
     const { data, error: authError } = await supabase.auth.signUp({ email, password })
     if (authError) { setError(authError.message); setLoading(false); return }
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id, full_name: fullName, email,
-      role: 'customer', membership_type: 'walk_in', is_active: true,
-    })
+
+    // Upsert handles the race where the DB trigger may have already created the row
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert(
+        { id: data.user.id, full_name: fullName, email, role: 'customer', membership_type: 'walk_in', is_active: true },
+        { onConflict: 'id' }
+      )
     if (profileError) { setError(profileError.message); setLoading(false); return }
+
+    // Explicit update ensures the name is set even if the trigger already fired with "New User"
+    await supabase
+      .from('profiles')
+      .update({ full_name: fullName })
+      .eq('id', data.user.id)
+
     navigate('/dashboard', { replace: true })
   }
 
