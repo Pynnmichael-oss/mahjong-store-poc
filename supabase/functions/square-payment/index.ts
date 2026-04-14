@@ -24,6 +24,7 @@ const corsHeaders = {
 // CREATE POLICY "employees can view payments" ON payments FOR SELECT USING (true);
 
 serve(async (req) => {
+  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -117,7 +118,7 @@ serve(async (req) => {
         paymentId: paymentRow?.id ?? null,
         squarePaymentId,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
     console.error('[square-payment] error:', err instanceof Error ? err.message : String(err))
