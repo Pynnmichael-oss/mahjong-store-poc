@@ -1,22 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import storefrontImg from '../assets/storefront.jpg'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { useGuestBooking } from '../hooks/useGuestBooking.js'
-import { useSeats } from '../hooks/useSeats.js'
 import FloatingTiles from '../components/layout/FloatingTiles.jsx'
-import SeatMap from '../components/seats/SeatMap.jsx'
-import Alert from '../components/ui/Alert.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../components/ui/FadeUp.jsx'
 import { supabase } from '../services/supabase.js'
 import { formatSessionDate, formatTime } from '../lib/dateUtils.js'
-import { checkBuddyPassCode, redeemBuddyPass } from '../services/buddyPassService.js'
-import { getTableForSeat } from '../lib/businessRules.js'
 
 // ─── Public nav ───────────────────────────────────────────────────────────────
 
-function PublicNav({ onBookClick }) {
+function PublicNav() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -42,8 +36,8 @@ function PublicNav({ onBookClick }) {
         <div className="hidden sm:flex items-center gap-6">
           <a href="#about"    className="font-sans text-sm text-sky/70 hover:text-sky transition-colors">About</a>
           <a href="#how"      className="font-sans text-sm text-sky/70 hover:text-sky transition-colors">How It Works</a>
+          <a href="#schedule" className="font-sans text-sm text-sky/70 hover:text-sky transition-colors">Schedule</a>
           <a href="#location" className="font-sans text-sm text-sky/70 hover:text-sky transition-colors">Location</a>
-          <a href="#book"     onClick={onBookClick} className="font-sans text-sm text-sky/70 hover:text-sky transition-colors">Book</a>
           <Link
             to="/login"
             className="ml-2 px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all"
@@ -74,10 +68,10 @@ function PublicNav({ onBookClick }) {
       {menuOpen && (
         <div className="sm:hidden bg-navy border-t border-white/5 px-4 py-4 space-y-3">
           {[
-            { href: '#about',    label: 'About'       },
+            { href: '#about',    label: 'About'        },
             { href: '#how',      label: 'How It Works' },
-            { href: '#location', label: 'Location'    },
-            { href: '#book',     label: 'Book'        },
+            { href: '#schedule', label: 'Schedule'     },
+            { href: '#location', label: 'Location'     },
           ].map(({ href, label }) => (
             <a
               key={href}
@@ -90,6 +84,7 @@ function PublicNav({ onBookClick }) {
           ))}
           <Link
             to="/login"
+            onClick={() => setMenuOpen(false)}
             className="block w-full text-center px-5 py-2.5 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all mt-2"
           >
             Sign In
@@ -100,214 +95,14 @@ function PublicNav({ onBookClick }) {
   )
 }
 
-// ─── Session card (public booking flow) ──────────────────────────────────────
-
-function SessionCard({ session, selected, onSelect }) {
-  const today = new Date().toISOString().split('T')[0]
-  const isToday = session.date === today
-  const available = session.seats
-    ? session.seats.filter(s => s.status === 'available').length
-    : (session.total_seats ?? 32) - (session.reserved_count ?? 0)
-  const isFull = available <= 0
-
-  return (
-    <button
-      onClick={() => !isFull && onSelect(session)}
-      disabled={isFull}
-      className={`w-full text-left rounded-2xl border p-4 transition-all duration-200 ${
-        selected
-          ? 'border-navy bg-sky-pale shadow-md'
-          : isFull
-          ? 'border-navy/10 bg-gray-50 opacity-60 cursor-not-allowed'
-          : 'border-navy/10 bg-white hover:border-navy/30 hover:shadow-sm cursor-pointer'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="font-sans text-[11px] uppercase tracking-[3px] text-sky-mid mb-0.5">
-            {isToday ? 'Today' : formatSessionDate(session.date).split(',')[0]}
-          </p>
-          <p className="font-playfair text-lg text-navy leading-tight">
-            {formatSessionDate(session.date)}
-          </p>
-          <p className="font-sans text-sm text-text-mid mt-0.5">
-            {formatTime(session.start_time)} – {formatTime(session.end_time)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className={`font-sans text-xs px-3 py-1 rounded-full ${
-            isFull ? 'bg-red-100 text-red-700' : available <= 4 ? 'bg-gold-light text-navy' : 'bg-sky-light text-navy'
-          }`}>
-            {isFull ? 'Full' : `${available} left`}
-          </span>
-          {selected && (
-            <span className="w-6 h-6 rounded-full bg-gold flex items-center justify-center flex-shrink-0">
-              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            </span>
-          )}
-        </div>
-      </div>
-    </button>
-  )
-}
-
-function SeatStep({ session, selectedSeat, onSelect }) {
-  const { seats, loading } = useSeats(session?.id)
-  if (loading) return <LoadingSpinner />
-  return <SeatMap seats={seats} selectedSeat={selectedSeat} onSelect={onSelect} />
-}
-
-function ConfirmationCard({ confirmation, onReset, isBuddyPass = false }) {
-  return (
-    <div className="max-w-md mx-auto">
-      <div className="bg-white rounded-2xl border-t-4 border-gold shadow-xl p-8 text-center">
-        <div className="w-14 h-14 rounded-full bg-gold-light flex items-center justify-center mx-auto mb-5">
-          <svg className="w-7 h-7 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h2 className="font-playfair text-3xl text-navy mb-1">You're booked!</h2>
-        {isBuddyPass && (
-          <span className="inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium bg-gold text-navy mb-3">
-            Buddy Pass
-          </span>
-        )}
-        <p className="font-cormorant italic text-text-mid text-lg mb-6">Show this screen when you arrive</p>
-        <div className="bg-cream rounded-xl p-5 text-left space-y-3 mb-6">
-          <div>
-            <p className="font-sans text-[11px] uppercase tracking-[3px] text-sky-mid">Date &amp; Time</p>
-            <p className="font-playfair text-navy text-lg mt-0.5">{confirmation.sessionDate}</p>
-            <p className="font-sans text-sm text-text-mid">{confirmation.sessionTime}</p>
-          </div>
-          <div className="border-t border-navy/8 pt-3">
-            <p className="font-sans text-[11px] uppercase tracking-[3px] text-sky-mid">Your Seat</p>
-            <p className="font-playfair text-navy text-lg mt-0.5">{confirmation.tableName} · Seat {confirmation.seatNumber}</p>
-          </div>
-          <div className="border-t border-navy/8 pt-3">
-            <p className="font-sans text-[11px] uppercase tracking-[3px] text-sky-mid">Name</p>
-            <p className="font-playfair text-navy text-lg mt-0.5">{confirmation.guestName}</p>
-          </div>
-        </div>
-        <p className="font-sans text-xs text-text-soft mb-6">Walk-in fee collected at the door</p>
-        <button
-          onClick={onReset}
-          className="w-full py-3 rounded-full font-sans font-medium text-sm border border-navy/20 text-navy hover:bg-sky-pale transition-all"
-        >
-          Book Another Session
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ─── Main AboutPage ───────────────────────────────────────────────────────────
 
 export default function AboutPage() {
   const { user, profile, loading: authLoading } = useAuth()
   const navigate = useNavigate()
-  const bookingRef = useRef(null)
 
-  const [sessions, setSessions] = useState([])
+  const [sessions, setSessions]           = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
-
-  const {
-    step, selectedSession, selectedSeat,
-    guestName, setGuestName, guestPhone, setGuestPhone,
-    loading: bookingLoading, error: bookingError, confirmation,
-    selectSession, selectSeat, backToSessions, backToSeats,
-    submitBooking, reset,
-  } = useGuestBooking()
-
-  // Payment step state
-  const [paymentType, setPaymentType]     = useState('walk_in')    // 'walk_in' | 'buddy_pass'
-  const [paymentStage, setPaymentStage]   = useState('select')     // 'select' | 'details'
-  const [buddyCode, setBuddyCode]         = useState('')
-  const [codeStatus, setCodeStatus]       = useState(null)          // null | 'checking' | 'valid' | 'invalid'
-  const [codeValidation, setCodeValidation] = useState(null)
-  const [codeError, setCodeError]         = useState(null)
-  const [buddyConfirmation, setBuddyConfirmation] = useState(null)
-  const [redeeming, setRedeeming]         = useState(false)
-  const [redeemError, setRedeemError]     = useState(null)
-
-  function resetPaymentState() {
-    setPaymentType('walk_in')
-    setPaymentStage('select')
-    setBuddyCode('')
-    setCodeStatus(null)
-    setCodeValidation(null)
-    setCodeError(null)
-    setRedeemError(null)
-  }
-
-  function handleBackToSeats() {
-    backToSeats()
-    resetPaymentState()
-  }
-
-  async function handleBuddyValidate() {
-    if (!buddyCode.trim()) return
-    setCodeStatus('checking')
-    setCodeError(null)
-    setCodeValidation(null)
-    try {
-      const result = await checkBuddyPassCode(buddyCode.trim())
-      setCodeValidation(result)
-      setCodeStatus('valid')
-    } catch (err) {
-      setCodeError(err.message)
-      setCodeStatus('invalid')
-    }
-  }
-
-  async function handleBuddyRedeem() {
-    if (!guestName.trim() || !guestPhone.trim()) return
-    setRedeeming(true)
-    setRedeemError(null)
-    try {
-      await redeemBuddyPass(
-        buddyCode,
-        selectedSession.id,
-        selectedSeat.id,
-        guestName.trim(),
-        guestPhone.trim()
-      )
-      const tableInfo   = getTableForSeat(selectedSeat.seat_number)
-      const sessionDate = formatSessionDate(selectedSession.date)
-      const sessionTime = `${formatTime(selectedSession.start_time)} – ${formatTime(selectedSession.end_time)}`
-      setBuddyConfirmation({
-        sessionDate,
-        sessionTime,
-        tableName:  tableInfo.tableName,
-        seatNumber: selectedSeat.seat_number,
-        guestName:  guestName.trim(),
-      })
-      // Send SMS same as walk-in flow
-      try {
-        await supabase.functions.invoke('send-sms', {
-          body: {
-            phone:       guestPhone.trim(),
-            guestName:   guestName.trim(),
-            sessionDate,
-            sessionTime,
-            tableName:   tableInfo.tableName,
-            seatNumber:  selectedSeat.seat_number,
-          },
-        })
-      } catch (_) { /* non-critical */ }
-    } catch (err) {
-      setRedeemError(err.message)
-    } finally {
-      setRedeeming(false)
-    }
-  }
-
-  function handleFullReset() {
-    reset()
-    setBuddyConfirmation(null)
-    resetPaymentState()
-  }
 
   // Redirect logged-in users
   useEffect(() => {
@@ -316,11 +111,13 @@ export default function AboutPage() {
     }
   }, [user, profile, authLoading, navigate])
 
-  // Fetch upcoming sessions (public)
+  // Fetch upcoming sessions — next 7 days, public read
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
-    const weekOut = new Date(); weekOut.setDate(weekOut.getDate() + 14)
+    const weekOut = new Date()
+    weekOut.setDate(weekOut.getDate() + 7)
     const weekOutStr = weekOut.toISOString().split('T')[0]
+
     supabase
       .from('sessions')
       .select('*, seats(id, status)')
@@ -329,18 +126,11 @@ export default function AboutPage() {
       .eq('status', 'open')
       .order('date', { ascending: true })
       .order('start_time', { ascending: true })
-      .then(({ data }) => { setSessions(data || []); setSessionsLoading(false) })
+      .then(({ data }) => {
+        setSessions(data || [])
+        setSessionsLoading(false)
+      })
   }, [])
-
-  function scrollToBooking(e) {
-    e?.preventDefault()
-    bookingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  function handleSelectSeat(seat) {
-    selectSeat(seat)
-    setTimeout(() => bookingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-  }
 
   if (authLoading) {
     return (
@@ -350,17 +140,18 @@ export default function AboutPage() {
     )
   }
 
+  // Group sessions by date for the schedule display
   const sessionsByDate = sessions.reduce((acc, s) => {
     if (!acc[s.date]) acc[s.date] = []
     acc[s.date].push(s)
     return acc
   }, {})
 
-  const inputCls = 'w-full bg-white border border-navy/20 rounded-full px-5 py-3 font-sans text-base text-navy placeholder:text-text-soft focus:outline-none focus:ring-2 focus:ring-navy/30 focus:border-navy/40 transition-all'
+  const today = new Date().toISOString().split('T')[0]
 
   return (
     <div id="top" className="min-h-screen bg-warm-white">
-      <PublicNav onBookClick={scrollToBooking} />
+      <PublicNav />
 
       {/* ── SECTION 1: HERO ─────────────────────────────────────────────────── */}
       <section className="relative bg-navy min-h-screen flex flex-col items-center justify-center px-4 py-24 overflow-hidden">
@@ -398,12 +189,12 @@ export default function AboutPage() {
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={scrollToBooking}
-              className="px-8 py-4 rounded-full font-sans font-medium text-base bg-sky text-navy hover:bg-sky/85 hover:scale-105 transition-all duration-200 shadow-lg"
+            <Link
+              to="/signup"
+              className="px-8 py-4 rounded-full font-sans font-medium text-base bg-navy text-sky border-[1.5px] border-sky hover:bg-navy-deep hover:scale-105 transition-all duration-200 shadow-lg"
             >
-              Book a Walk-In Session
-            </button>
+              New? Get Started Here
+            </Link>
             <Link
               to="/login"
               className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky/50 text-sky hover:bg-sky/10 hover:border-sky transition-all duration-200"
@@ -442,12 +233,12 @@ export default function AboutPage() {
                 you need to play — tiles, equipment, and great company.
               </p>
             </div>
-            <button
-              onClick={scrollToBooking}
+            <Link
+              to="/signup"
               className="inline-block font-sans font-medium text-navy text-sm border-b border-navy mt-8 pb-0.5 hover:text-sky-mid hover:border-sky-mid transition-colors"
             >
               Reserve your seat →
-            </button>
+            </Link>
           </FadeUp>
 
           {/* Right — storefront photo */}
@@ -478,18 +269,18 @@ export default function AboutPage() {
             {[
               {
                 num: '01',
-                title: 'Choose a Session',
-                body: 'Browse upcoming open play sessions and pick a time that works for you.',
+                title: 'Create Your Account',
+                body: 'Sign up for free and choose a membership plan that fits how often you play.',
                 icon: (
                   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 ),
               },
               {
                 num: '02',
                 title: 'Pick Your Seat',
-                body: 'Select your exact seat at one of our eight named tables. Your spot is held for you.',
+                body: 'Browse upcoming sessions and select your exact seat at one of our eight named tables.',
                 icon: (
                   <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
@@ -509,14 +300,12 @@ export default function AboutPage() {
             ].map(({ num, title, body, icon }, i) => (
               <FadeUp key={num} delay={i * 100}>
                 <div className="relative bg-white rounded-2xl border border-navy/8 shadow-sm p-8 text-center hover:shadow-md hover:-translate-y-1 transition-all duration-250 overflow-hidden h-full">
-                  {/* Background number */}
                   <span
                     className="absolute top-3 left-4 font-playfair text-7xl text-navy/6 select-none pointer-events-none leading-none"
                     aria-hidden="true"
                   >
                     {num}
                   </span>
-
                   <div className="relative z-10">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-light text-sky-mid mb-5">
                       {icon}
@@ -531,255 +320,83 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ── SECTION 4: WALK-IN BOOKING ──────────────────────────────────────── */}
-      <section id="book" ref={bookingRef} className="bg-warm-white py-20 px-4 sm:px-8">
-        <div className="max-w-3xl mx-auto">
+      {/* ── SECTION 4: THIS WEEK'S SCHEDULE ─────────────────────────────────── */}
+      <section id="schedule" className="bg-warm-white py-20 px-4 sm:px-8">
+        <div className="max-w-2xl mx-auto">
+          <FadeUp>
+            <div className="text-center mb-10">
+              <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky-mid mb-3">Open Play</p>
+              <h2 className="font-playfair text-navy text-4xl sm:text-5xl mb-3">This Week's Schedule</h2>
+              <p className="font-cormorant italic text-text-mid text-xl">
+                Reserve your seat by creating an account.
+              </p>
+            </div>
+          </FadeUp>
 
-          {(step === 'confirmed' || buddyConfirmation) ? (
+          {sessionsLoading ? (
+            <div className="flex justify-center py-12"><LoadingSpinner /></div>
+          ) : Object.keys(sessionsByDate).length === 0 ? (
             <FadeUp>
-              <ConfirmationCard
-                confirmation={buddyConfirmation ?? confirmation}
-                onReset={handleFullReset}
-                isBuddyPass={!!buddyConfirmation}
-              />
+              <p className="font-cormorant italic text-text-soft text-center text-xl py-12">
+                No sessions scheduled this week. Check back soon.
+              </p>
             </FadeUp>
           ) : (
-            <>
-              <FadeUp>
-                <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky-mid mb-2 text-center">
-                  Walk-in Booking
-                </p>
-                <h2 className="font-playfair text-3xl sm:text-4xl text-navy text-center mb-12">
-                  Book Your <em className="text-sky-mid">Seat</em>
-                </h2>
-              </FadeUp>
-
-              {/* Step 1 — session */}
-              <FadeUp delay={50}>
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium flex-shrink-0 ${step >= 1 ? 'bg-navy text-sky' : 'bg-navy/10 text-text-soft'}`}>
-                      1
-                    </span>
-                    <h3 className="font-playfair text-lg text-navy">Choose a Session</h3>
-                  </div>
-
-                  {sessionsLoading ? (
-                    <LoadingSpinner />
-                  ) : sessions.length === 0 ? (
-                    <p className="font-cormorant italic text-text-mid text-center py-8">
-                      No sessions available in the next two weeks. Check back soon.
+            <div className="space-y-4">
+              {Object.entries(sessionsByDate).map(([date, daySessions], gi) => (
+                <FadeUp key={date} delay={gi * 60}>
+                  <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+                    {/* Date header */}
+                    <p className="font-playfair text-navy text-lg border-b border-navy/10 pb-2 mb-4">
+                      {date === today ? 'Today' : formatSessionDate(date)}
                     </p>
-                  ) : (
-                    <div className="space-y-6">
-                      {Object.entries(sessionsByDate).map(([date, daySessions]) => (
-                        <div key={date}>
-                          <p className="font-sans text-xs uppercase tracking-[3px] text-text-soft mb-2 px-1">
-                            {formatSessionDate(date)}
-                          </p>
-                          <div className="space-y-2">
-                            {daySessions.map(s => (
-                              <SessionCard
-                                key={s.id}
-                                session={s}
-                                selected={selectedSession?.id === s.id}
-                                onSelect={selectSession}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </FadeUp>
 
-              {/* Step 2 — seat */}
-              {(step === 2 || step === 3) && selectedSession && (
-                <FadeUp>
-                  <div className="mb-8">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium flex-shrink-0 bg-navy text-sky">
-                        2
-                      </span>
-                      <h3 className="font-playfair text-lg text-navy">Choose Your Seat</h3>
-                      <button
-                        onClick={backToSessions}
-                        className="ml-auto font-sans text-xs text-text-soft hover:text-navy underline transition-colors"
-                      >
-                        Change session
-                      </button>
-                    </div>
-                    <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-5">
-                      <SeatStep session={selectedSession} selectedSeat={selectedSeat} onSelect={handleSelectSeat} />
-                    </div>
-                  </div>
-                </FadeUp>
-              )}
+                    <div className="space-y-3">
+                      {daySessions.map(session => {
+                        const available = session.seats
+                          ? session.seats.filter(s => s.status === 'available').length
+                          : (session.total_seats ?? 32)
+                        const isFull = available <= 0
 
-              {/* Step 3 — payment type */}
-              {step === 3 && selectedSeat && paymentStage === 'select' && (
-                <FadeUp>
-                  <div className="mb-8">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium flex-shrink-0 bg-navy text-sky">3</span>
-                      <h3 className="font-playfair text-lg text-navy">How would you like to book?</h3>
-                      <button onClick={handleBackToSeats} className="ml-auto font-sans text-xs text-text-soft hover:text-navy underline transition-colors">
-                        Change seat
-                      </button>
-                    </div>
-
-                    <div className="space-y-3 mb-5">
-                      {/* Walk-in card */}
-                      <button
-                        onClick={() => setPaymentType('walk_in')}
-                        className={`w-full text-left p-5 rounded-2xl border-2 transition-all ${
-                          paymentType === 'walk_in' ? 'border-navy bg-sky-pale' : 'border-navy/10 bg-white hover:border-navy/30'
-                        }`}
-                      >
-                        <p className="font-playfair text-navy text-lg mb-1">Walk-In Session</p>
-                        <p className="font-sans text-sm text-text-mid">Pay the walk-in fee when you arrive.</p>
-                      </button>
-
-                      {/* Buddy pass card */}
-                      <div className={`p-5 rounded-2xl border-2 transition-all ${
-                        paymentType === 'buddy_pass' ? 'border-gold bg-gold-light/20' : 'border-navy/10 bg-white'
-                      }`}>
-                        <button
-                          onClick={() => setPaymentType('buddy_pass')}
-                          className="w-full text-left"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-playfair text-navy text-lg">Buddy Pass</p>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold-light text-navy border border-gold/30">
-                              Free with member code
+                        return (
+                          <div
+                            key={session.id}
+                            className="flex items-center justify-between gap-4"
+                          >
+                            <p className="font-sans text-navy font-medium text-sm">
+                              {formatTime(session.start_time)} – {formatTime(session.end_time)}
+                            </p>
+                            <span className={`font-sans text-xs px-3 py-1 rounded-full flex-shrink-0 ${
+                              isFull
+                                ? 'bg-red-400 text-white'
+                                : 'bg-sky-light text-navy'
+                            }`}>
+                              {isFull ? 'Full' : `${available} seats left`}
                             </span>
                           </div>
-                          <p className="font-sans text-sm text-text-mid">
-                            Have a code from a Four Winds member? Enter it here.
-                          </p>
-                        </button>
-
-                        {/* Code input — only visible when buddy pass is selected */}
-                        {paymentType === 'buddy_pass' && (
-                          <div className="mt-4">
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={buddyCode}
-                                onChange={e => {
-                                  setBuddyCode(e.target.value.toUpperCase())
-                                  setCodeStatus(null)
-                                  setCodeValidation(null)
-                                  setCodeError(null)
-                                }}
-                                placeholder="e.g. FW-AB12CD34"
-                                className="flex-1 border border-navy/20 rounded-full px-4 py-2.5 font-sans text-sm text-navy uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-sky-mid"
-                                style={{ fontSize: '16px' }}
-                              />
-                              <button
-                                onClick={handleBuddyValidate}
-                                disabled={!buddyCode.trim() || codeStatus === 'checking'}
-                                className="px-4 py-2.5 rounded-full font-sans text-sm font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50 whitespace-nowrap"
-                              >
-                                {codeStatus === 'checking' ? '...' : 'Validate'}
-                              </button>
-                            </div>
-
-                            {codeStatus === 'valid' && codeValidation && (
-                              <div className="mt-2 flex items-center gap-2">
-                                <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <p className="font-sans text-xs text-green-700">
-                                  Code accepted! {codeValidation.remaining} pass{codeValidation.remaining !== 1 ? 'es' : ''} remaining for {codeValidation.ownerName}'s account.
-                                </p>
-                              </div>
-                            )}
-                            {codeStatus === 'invalid' && codeError && (
-                              <p className="mt-2 font-sans text-xs text-red-600">{codeError}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setPaymentStage('details')}
-                      disabled={paymentType === 'buddy_pass' && codeStatus !== 'valid'}
-                      className="w-full py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
-                    >
-                      Continue →
-                    </button>
-                  </div>
-                </FadeUp>
-              )}
-
-              {/* Step 4 — details */}
-              {step === 3 && selectedSeat && paymentStage === 'details' && (
-                <FadeUp>
-                  <div>
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium flex-shrink-0 bg-navy text-sky">4</span>
-                      <h3 className="font-playfair text-lg text-navy">Your Details</h3>
-                      <button
-                        onClick={() => setPaymentStage('select')}
-                        className="ml-auto font-sans text-xs text-text-soft hover:text-navy underline transition-colors"
-                      >
-                        Change payment
-                      </button>
-                    </div>
-                    <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6 space-y-4">
-                      {(bookingError || redeemError) && (
-                        <Alert type="error">{bookingError ?? redeemError}</Alert>
-                      )}
-                      <div>
-                        <label className="block font-sans text-sm font-medium text-text-mid mb-1.5">Full Name *</label>
-                        <input
-                          type="text"
-                          value={guestName}
-                          onChange={e => setGuestName(e.target.value)}
-                          placeholder="Your name"
-                          autoComplete="name"
-                          className={inputCls}
-                          style={{ fontSize: '16px' }}
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-sans text-sm font-medium text-text-mid mb-1.5">Phone Number *</label>
-                        <input
-                          type="tel"
-                          value={guestPhone}
-                          onChange={e => setGuestPhone(e.target.value)}
-                          placeholder="(555) 555-5555"
-                          autoComplete="tel"
-                          className={inputCls}
-                          style={{ fontSize: '16px' }}
-                        />
-                      </div>
-                      <button
-                        onClick={paymentType === 'buddy_pass' ? handleBuddyRedeem : submitBooking}
-                        disabled={
-                          (paymentType === 'buddy_pass' ? redeeming : bookingLoading) ||
-                          !guestName.trim() || !guestPhone.trim()
-                        }
-                        className="w-full py-4 rounded-full font-sans font-medium text-base bg-navy text-sky hover:bg-navy-deep transition-all duration-200 disabled:opacity-50 mt-2"
-                      >
-                        {(paymentType === 'buddy_pass' ? redeeming : bookingLoading)
-                          ? 'Confirming...'
-                          : 'Confirm Booking'}
-                      </button>
-                      <p className="font-sans text-xs text-text-soft text-center">
-                        {paymentType === 'buddy_pass'
-                          ? 'Buddy pass · No payment needed'
-                          : 'Walk-in fee collected at the door · No account needed'}
-                      </p>
+                        )
+                      })}
                     </div>
                   </div>
                 </FadeUp>
-              )}
-            </>
+              ))}
+            </div>
           )}
+
+          {/* Schedule CTA */}
+          <FadeUp delay={100}>
+            <div className="text-center mt-10">
+              <p className="font-cormorant italic text-text-mid text-lg mb-5">
+                Ready to reserve your seat?
+              </p>
+              <Link
+                to="/signup"
+                className="inline-block px-8 py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all duration-200"
+              >
+                Create Your Account →
+              </Link>
+            </div>
+          </FadeUp>
         </div>
       </section>
 
@@ -839,7 +456,6 @@ export default function AboutPage() {
 
       {/* ── SECTION 6: CTA (navy) ────────────────────────────────────────────── */}
       <section className="relative bg-navy py-28 px-4 sm:px-8 overflow-hidden">
-        {/* Watermark text */}
         <span
           className="absolute inset-0 flex items-center justify-center font-playfair text-navy-deep select-none pointer-events-none whitespace-nowrap overflow-hidden"
           style={{ fontSize: 'clamp(80px, 18vw, 200px)', opacity: 0.15 }}
@@ -855,21 +471,21 @@ export default function AboutPage() {
               Your table is waiting.
             </h2>
             <p className="font-cormorant italic text-sky/60 text-xl sm:text-2xl max-w-lg mx-auto mb-10 leading-relaxed">
-              Join the club, book a walk-in seat, or bring your whole group.
+              Join the club and reserve your seat at the table.
               Four Winds is your place to play.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={scrollToBooking}
-                className="px-8 py-4 rounded-full font-sans font-medium text-base bg-sky text-navy hover:bg-sky/85 hover:scale-105 transition-all duration-200 shadow-lg"
-              >
-                Book a Walk-In Session
-              </button>
               <Link
                 to="/signup"
+                className="px-8 py-4 rounded-full font-sans font-medium text-base bg-sky text-navy hover:bg-sky/85 hover:scale-105 transition-all duration-200 shadow-lg"
+              >
+                New? Get Started Here
+              </Link>
+              <Link
+                to="/login"
                 className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky/50 text-sky hover:bg-sky/10 hover:border-sky transition-all duration-200"
               >
-                Create an Account
+                Member Login
               </Link>
             </div>
           </FadeUp>
@@ -890,25 +506,38 @@ export default function AboutPage() {
             {[
               { href: '#about',    label: 'About'    },
               { href: '#how',      label: 'Sessions' },
-              { href: '#location', label: 'Events'   },
+              { href: '#location', label: 'Location' },
               { to:   '/login',    label: 'Sign In'  },
             ].map(({ href, to, label }) =>
               to ? (
-                <Link key={label} to={to} className="font-sans text-sky-mid text-sm opacity-60 hover:opacity-100 transition-opacity">
+                <Link key={label} to={to} className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
                   {label}
                 </Link>
               ) : (
-                <a key={label} href={href} className="font-sans text-sky-mid text-sm opacity-60 hover:opacity-100 transition-opacity">
+                <a key={label} href={href} className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
                   {label}
                 </a>
               )
             )}
           </div>
 
-          {/* Right — copyright */}
+          {/* Right — social */}
           <div className="sm:text-right">
-            <p className="font-sans text-sky/30 text-xs">© 2026 Four Winds · Tulsa, Oklahoma</p>
+            <a
+              href="https://www.instagram.com/fourwindstulsa/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors"
+            >
+              @fourwindstulsa
+            </a>
           </div>
+        </div>
+
+        <div className="max-w-6xl mx-auto mt-8 pt-8 border-t border-white/5 text-center">
+          <p className="font-sans text-xs text-sky/20">
+            © {new Date().getFullYear()} Four Winds Mahjong Club. Tulsa, Oklahoma.
+          </p>
         </div>
       </footer>
     </div>
