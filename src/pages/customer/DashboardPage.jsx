@@ -32,51 +32,67 @@ export default function DashboardPage() {
   const membershipType = profile?.membership_type ?? 'walk_in'
   const tier = MEMBERSHIP_TIERS[membershipType] ?? MEMBERSHIP_TIERS.walk_in
 
-  const memberSince = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const memberSinceDate = profile?.created_at ? new Date(profile.created_at) : null
+  const memberSinceMonth = memberSinceDate
+    ? memberSinceDate.toLocaleDateString('en-US', { month: 'short' })
     : '—'
+  const memberSinceYear = memberSinceDate
+    ? memberSinceDate.getFullYear()
+    : ''
+
+  const membershipLabel = membershipType === 'subscriber' ? 'Subscriber' : 'Walk-in'
+  const membershipSub   = membershipType === 'subscriber' ? '3 plays/week included' : 'Pay per session'
 
   return (
     <PageWrapper noPad>
-      {/* Hero strip */}
-      <div className="bg-navy px-4 sm:px-6 py-12">
-        <div className="max-w-6xl mx-auto">
+      {/* Hero strip — greeting left, stats right */}
+      <div className="bg-navy px-4 sm:px-8 py-10">
+        <div className="max-w-6xl mx-auto flex items-center justify-between flex-wrap gap-6">
+          {/* Left — greeting */}
           <FadeUp>
-            <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky/60 mb-2">Welcome back</p>
-            <h1 className="font-playfair text-3xl sm:text-4xl text-sky leading-tight">
+            <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky-mid mb-1">Welcome back</p>
+            <h1 className="font-playfair text-sky text-4xl font-bold">
               {profile?.full_name?.split(' ')[0] ?? 'Member'}
             </h1>
-            <p className="font-cormorant italic text-sky/70 text-lg mt-2">
-              {tier.tagline}
+            <p className="font-cormorant italic text-sky/60 text-lg mt-1">
+              {membershipLabel} — {membershipSub}
             </p>
-            <span className={`inline-flex items-center mt-3 px-4 py-1.5 rounded-full font-sans text-xs font-medium ${
-              membershipType === 'subscriber' ? 'bg-sky/10 text-sky border border-sky/20' : 'bg-white/5 text-sky/70 border border-sky/10'
-            }`}>
-              {tier.name}
-            </span>
+          </FadeUp>
+
+          {/* Right — 3 stat pills */}
+          <FadeUp>
+            <div className="flex gap-4 flex-wrap">
+              {/* Plays this week */}
+              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">
+                <p className="font-playfair text-sky text-3xl font-bold">
+                  {membershipType === 'unlimited' ? '∞' : checkedInCount}
+                  {membershipType === 'subscriber' && (
+                    <span className="text-sky/40 text-lg">/3</span>
+                  )}
+                </p>
+                <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">Plays this week</p>
+              </div>
+
+              {/* Upcoming reservations */}
+              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">
+                <p className="font-playfair text-sky text-3xl font-bold">{upcoming.length}</p>
+                <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">Upcoming</p>
+              </div>
+
+              {/* Member since */}
+              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">
+                <p className="font-playfair text-sky text-xl font-bold leading-tight">
+                  {memberSinceMonth}<br />
+                  <span className="text-2xl">{memberSinceYear}</span>
+                </p>
+                <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">Member since</p>
+              </div>
+            </div>
           </FadeUp>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
-
-        {/* Stats row */}
-        <FadeUp>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { value: membershipType === 'subscriber' ? `${checkedInCount} / 3` : '∞', label: 'Plays this week' },
-              { value: upcoming.length,  label: 'Upcoming reservations' },
-              { value: memberSince,      label: 'Member since', small: true },
-            ].map(({ value, label, small }) => (
-              <div key={label} className="bg-white rounded-2xl border border-navy/8 shadow-sm p-5 text-center">
-                <p className={`font-playfair text-navy leading-tight ${small ? 'text-base' : 'text-3xl'}`}>
-                  {value}
-                </p>
-                <p className="font-sans text-xs text-text-soft mt-1">{label}</p>
-              </div>
-            ))}
-          </div>
-        </FadeUp>
 
         {/* Next reservation */}
         {!resLoading && nextReservation && (

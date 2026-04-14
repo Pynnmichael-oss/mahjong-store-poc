@@ -22,7 +22,8 @@ function addDays(n) {
 function greeting(name) {
   const h = new Date().getHours()
   const time = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
-  return `Good ${time}${name ? `, ${name.split(' ')[0]}` : ''}`
+  const display = (!name || name === 'New User') ? 'Team' : name.split(' ')[0]
+  return `Good ${time}, ${display}`
 }
 
 function longDate() {
