@@ -10,11 +10,17 @@ import { formatSessionDate, formatTime } from '../lib/dateUtils.js'
 
 // ─── About page nav (auth-aware) ─────────────────────────────────────────────
 
+// Smooth scroll helper — never use href="#id" in HashRouter
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (el) el.scrollIntoView({ behavior: 'smooth' })
+}
+
 function AboutNav() {
   const { user, profile, isEmployee, signOut } = useAuth()
   const navigate = useNavigate()
-  const [scrolled, setScrolled]   = useState(false)
-  const [menuOpen, setMenuOpen]   = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     function onScroll() { setScrolled(window.scrollY > 60) }
@@ -28,69 +34,13 @@ function AboutNav() {
     navigate('/login')
   }
 
-  const linkCls   = 'font-sans text-sm text-sky/70 hover:text-sky transition-colors'
-  const mobileCls = 'block font-sans text-sm text-sky/70 hover:text-sky py-2 transition-colors'
+  function closeAndScroll(id) {
+    setMenuOpen(false)
+    setTimeout(() => scrollTo(id), 50)
+  }
 
-  // ── link sets by auth state ──────────────────────────────────────────────
-  const publicDesktop = (
-    <>
-      <a href="#about"    className={linkCls}>About</a>
-      <a href="#schedule" className={linkCls}>Sessions</a>
-      <a href="#location" className={linkCls}>Location</a>
-      <Link to="/login"   className={`ml-2 px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all`}>Sign In</Link>
-      <Link to="/signup"  className={`px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky text-navy hover:bg-sky/85 transition-all`}>Get Started</Link>
-    </>
-  )
-
-  const customerDesktop = (
-    <>
-      <Link to="/sessions" className={linkCls}>Sessions</Link>
-      <Link to="/events"   className={linkCls}>Events</Link>
-      <Link to="/my-qr"    className={linkCls}>My QR</Link>
-      <Link to="/profile"  className={linkCls}>Profile</Link>
-      <button onClick={handleSignOut} className="ml-2 px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all">
-        Sign Out
-      </button>
-    </>
-  )
-
-  const employeeDesktop = (
-    <>
-      <Link to="/employee"          className={linkCls}>Dashboard</Link>
-      <Link to="/employee/sessions" className={linkCls}>Sessions</Link>
-      <Link to="/employee/members"  className={linkCls}>Members</Link>
-      <Link to="/employee/events"   className={linkCls}>Events</Link>
-      <Link to="/employee/reports"  className={linkCls}>Reports</Link>
-      <button onClick={handleSignOut} className="ml-2 px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all">
-        Sign Out
-      </button>
-    </>
-  )
-
-  const publicMobile = [
-    { href: '#about',    label: 'About'    },
-    { href: '#schedule', label: 'Sessions' },
-    { href: '#location', label: 'Location' },
-  ]
-
-  const customerMobile = [
-    { to: '/sessions', label: 'Sessions' },
-    { to: '/events',   label: 'Events'   },
-    { to: '/my-qr',   label: 'My QR'   },
-    { to: '/profile',  label: 'Profile'  },
-  ]
-
-  const employeeMobile = [
-    { to: '/employee',          label: 'Dashboard' },
-    { to: '/employee/sessions', label: 'Sessions'  },
-    { to: '/employee/members',  label: 'Members'   },
-    { to: '/employee/events',   label: 'Events'    },
-    { to: '/employee/reports',  label: 'Reports'   },
-  ]
-
-  const mobileLinks = user
-    ? (isEmployee ? employeeMobile : customerMobile)
-    : publicMobile
+  const linkCls   = 'font-sans text-sm text-sky/70 hover:text-sky transition-colors bg-transparent border-0 cursor-pointer'
+  const mobileCls = 'block w-full text-left font-sans text-sm text-sky/70 hover:text-sky py-2 transition-colors bg-transparent border-0 cursor-pointer'
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -100,17 +50,46 @@ function AboutNav() {
     }`}>
       <div className="max-w-6xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
 
-        {/* Logo */}
+        {/* Logo — always "/" */}
         <Link to="/" className="font-playfair text-sky text-xl tracking-wide flex-shrink-0">
           Four Winds
         </Link>
 
         {/* Desktop links */}
         <div className="hidden sm:flex items-center gap-4">
-          {user
-            ? (isEmployee ? employeeDesktop : customerDesktop)
-            : publicDesktop
-          }
+          {!user ? (
+            // ── Public visitor ──────────────────────────────────────────
+            <>
+              <button onClick={() => scrollTo('about')}    className={linkCls}>About</button>
+              <button onClick={() => scrollTo('schedule')} className={linkCls}>Sessions</button>
+              <button onClick={() => scrollTo('location')} className={linkCls}>Location</button>
+              <Link to="/login"  className="ml-2 px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all">Sign In</Link>
+              <Link to="/signup" className="px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky text-navy hover:bg-sky/85 transition-all">Get Started</Link>
+            </>
+          ) : isEmployee ? (
+            // ── Employee ────────────────────────────────────────────────
+            <>
+              <Link to="/employee"          className={linkCls}>Dashboard</Link>
+              <Link to="/employee/sessions" className={linkCls}>Sessions</Link>
+              <Link to="/employee/members"  className={linkCls}>Members</Link>
+              <Link to="/employee/events"   className={linkCls}>Events</Link>
+              <Link to="/employee/reports"  className={linkCls}>Reports</Link>
+              <button onClick={handleSignOut} className="ml-2 px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all">
+                Sign Out
+              </button>
+            </>
+          ) : (
+            // ── Customer ────────────────────────────────────────────────
+            <>
+              <Link to="/sessions" className={linkCls}>Sessions</Link>
+              <Link to="/events"   className={linkCls}>Events</Link>
+              <Link to="/my-qr"    className={linkCls}>My QR</Link>
+              <Link to="/profile"  className={linkCls}>Profile</Link>
+              <button onClick={handleSignOut} className="ml-2 px-5 py-2 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all">
+                Sign Out
+              </button>
+            </>
+          )}
         </div>
 
         {/* Mobile hamburger */}
@@ -140,22 +119,42 @@ function AboutNav() {
               <p className="font-playfair text-sky text-base mt-0.5">{profile.full_name}</p>
             </div>
           )}
-          {mobileLinks.map(({ href, to, label }) =>
-            href ? (
-              <a key={label} href={href} onClick={() => setMenuOpen(false)} className={mobileCls}>{label}</a>
-            ) : (
-              <Link key={label} to={to} onClick={() => setMenuOpen(false)} className={mobileCls}>{label}</Link>
-            )
-          )}
+
           {!user ? (
-            <div className="pt-2 space-y-2">
-              <Link to="/login"  onClick={() => setMenuOpen(false)} className="block text-center px-5 py-2.5 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all">Sign In</Link>
-              <Link to="/signup" onClick={() => setMenuOpen(false)} className="block text-center px-5 py-2.5 rounded-full font-sans text-sm font-medium bg-sky text-navy hover:bg-sky/85 transition-all">Get Started</Link>
-            </div>
+            <>
+              <button onClick={() => closeAndScroll('about')}    className={mobileCls}>About</button>
+              <button onClick={() => closeAndScroll('schedule')} className={mobileCls}>Sessions</button>
+              <button onClick={() => closeAndScroll('location')} className={mobileCls}>Location</button>
+              <div className="pt-2 space-y-2">
+                <Link to="/login"  onClick={() => setMenuOpen(false)} className="block text-center px-5 py-2.5 rounded-full font-sans text-sm font-medium bg-sky/10 text-sky border border-sky/20 hover:bg-sky/20 transition-all">Sign In</Link>
+                <Link to="/signup" onClick={() => setMenuOpen(false)} className="block text-center px-5 py-2.5 rounded-full font-sans text-sm font-medium bg-sky text-navy hover:bg-sky/85 transition-all">Get Started</Link>
+              </div>
+            </>
+          ) : isEmployee ? (
+            <>
+              {[
+                { to: '/employee',          label: 'Dashboard' },
+                { to: '/employee/sessions', label: 'Sessions'  },
+                { to: '/employee/members',  label: 'Members'   },
+                { to: '/employee/events',   label: 'Events'    },
+                { to: '/employee/reports',  label: 'Reports'   },
+              ].map(({ to, label }) => (
+                <Link key={to} to={to} onClick={() => setMenuOpen(false)} className={mobileCls}>{label}</Link>
+              ))}
+              <button onClick={handleSignOut} className="w-full text-left px-0 py-3 font-sans text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Sign Out</button>
+            </>
           ) : (
-            <button onClick={handleSignOut} className="w-full text-left px-4 py-3 rounded-xl font-sans text-sm font-medium text-red-400 hover:text-red-300 transition-colors pt-3">
-              Sign Out
-            </button>
+            <>
+              {[
+                { to: '/sessions', label: 'Sessions' },
+                { to: '/events',   label: 'Events'   },
+                { to: '/my-qr',   label: 'My QR'   },
+                { to: '/profile',  label: 'Profile'  },
+              ].map(({ to, label }) => (
+                <Link key={to} to={to} onClick={() => setMenuOpen(false)} className={mobileCls}>{label}</Link>
+              ))}
+              <button onClick={handleSignOut} className="w-full text-left px-0 py-3 font-sans text-sm font-medium text-red-400 hover:text-red-300 transition-colors">Sign Out</button>
+            </>
           )}
         </div>
       )}
@@ -166,7 +165,8 @@ function AboutNav() {
 // ─── Main AboutPage ───────────────────────────────────────────────────────────
 
 export default function AboutPage() {
-  const { loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
+  console.log('[AboutPage] auth state:', { user: user?.id ?? 'none', role: profile?.role ?? 'none', loading: authLoading })
 
   const [sessions, setSessions]           = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
@@ -564,21 +564,17 @@ export default function AboutPage() {
           {/* Center — nav links */}
           <div className="flex flex-wrap gap-x-5 gap-y-2 sm:justify-center">
             {[
-              { href: '#about',    label: 'About'    },
-              { href: '#how',      label: 'Sessions' },
-              { href: '#location', label: 'Location' },
-              { to:   '/login',    label: 'Sign In'  },
-            ].map(({ href, to, label }) =>
-              to ? (
-                <Link key={label} to={to} className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
-                  {label}
-                </Link>
-              ) : (
-                <a key={label} href={href} className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
-                  {label}
-                </a>
-              )
-            )}
+              { id: 'about',    label: 'About'    },
+              { id: 'schedule', label: 'Sessions' },
+              { id: 'location', label: 'Location' },
+            ].map(({ id, label }) => (
+              <button key={id} onClick={() => scrollTo(id)} className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors bg-transparent border-0 cursor-pointer">
+                {label}
+              </button>
+            ))}
+            <Link to="/login" className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
+              Sign In
+            </Link>
           </div>
 
           {/* Right — social */}
