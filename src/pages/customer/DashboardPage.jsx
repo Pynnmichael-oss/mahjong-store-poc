@@ -61,7 +61,7 @@ export default function DashboardPage() {
           {/* Right — stat pills */}
           <FadeUp>
             <div className="flex gap-4 flex-wrap">
-              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">
+              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center w-[110px] h-[90px] flex flex-col items-center justify-center">
                 <p className="font-playfair text-sky text-3xl font-bold">
                   {isDragonPass ? '∞' : isFlowerPass ? monthlyCount : checkedInCount}
                   {isSubscriber && <span className="text-sky/40 text-lg">/3</span>}
@@ -72,12 +72,12 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">
+              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center w-[110px] h-[90px] flex flex-col items-center justify-center">
                 <p className="font-playfair text-sky text-3xl font-bold">{upcoming.length}</p>
                 <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">Upcoming</p>
               </div>
 
-              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">
+              <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center w-[110px] h-[90px] flex flex-col items-center justify-center">
                 <p className="font-playfair text-sky text-xl font-bold leading-tight">
                   {memberSinceMonth}<br />
                   <span className="text-2xl">{memberSinceYear}</span>
@@ -86,22 +86,20 @@ export default function DashboardPage() {
               </div>
 
               <Link to="/my-qr">
-                <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px] hover:bg-white/15 transition-all cursor-pointer">
-                  <div className="flex items-center justify-center" style={{ height: '2.25rem' }}>
-                    <svg viewBox="0 0 24 24" className="w-9 h-9 text-sky" fill="currentColor">
-                      <rect x="3" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
-                      <rect x="13" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
-                      <rect x="3" y="13" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
-                      <rect x="5" y="5" width="4" height="4"/>
-                      <rect x="15" y="5" width="4" height="4"/>
-                      <rect x="5" y="15" width="4" height="4"/>
-                      <rect x="13" y="13" width="2" height="2"/>
-                      <rect x="17" y="13" width="2" height="2"/>
-                      <rect x="13" y="17" width="2" height="2"/>
-                      <rect x="17" y="17" width="2" height="2"/>
-                      <rect x="15" y="15" width="2" height="2"/>
-                    </svg>
-                  </div>
+                <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center w-[110px] h-[90px] flex flex-col items-center justify-center hover:bg-white/15 transition-all cursor-pointer">
+                  <svg viewBox="0 0 24 24" className="w-7 h-7 text-sky mx-auto mb-1" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="8" height="8" rx="1"/>
+                    <rect x="13" y="3" width="8" height="8" rx="1"/>
+                    <rect x="3" y="13" width="8" height="8" rx="1"/>
+                    <rect x="5" y="5" width="4" height="4" fill="currentColor" stroke="none"/>
+                    <rect x="15" y="5" width="4" height="4" fill="currentColor" stroke="none"/>
+                    <rect x="5" y="15" width="4" height="4" fill="currentColor" stroke="none"/>
+                    <rect x="13" y="13" width="2" height="2" fill="currentColor" stroke="none"/>
+                    <rect x="17" y="13" width="2" height="2" fill="currentColor" stroke="none"/>
+                    <rect x="13" y="17" width="2" height="2" fill="currentColor" stroke="none"/>
+                    <rect x="17" y="17" width="2" height="2" fill="currentColor" stroke="none"/>
+                    <rect x="15" y="15" width="2" height="2" fill="currentColor" stroke="none"/>
+                  </svg>
                   <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">My QR Code</p>
                 </div>
               </Link>
