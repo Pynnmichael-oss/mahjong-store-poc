@@ -1,7 +1,7 @@
 import Badge from '../ui/Badge.jsx'
 import { getTableForSeat, getMembershipBadgeClasses, getMembershipLabel } from '../../lib/businessRules.js'
 
-export default function AttendeeRow({ reservation, onNoShow, onOverride, disabled, index }) {
+export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCheckin, disabled, index }) {
   const profile  = reservation.profiles
   const seat     = reservation.seats
   const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
@@ -76,15 +76,26 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, disable
               Override
             </button>
           )}
-          {(reservation.status === 'confirmed' || reservation.status === 'walk_in') && (
-            <button
-              onClick={() => onNoShow && onNoShow(reservation.id, 'checkin')}
-              disabled={disabled}
-              className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
-            >
-              Check In
-            </button>
-          )}
+          {(reservation.status === 'confirmed' || reservation.status === 'walk_in') && (() => {
+            const needsPayment = reservation.is_walk_in || reservation.is_flagged_overage
+            return needsPayment ? (
+              <button
+                onClick={() => onPayCheckin?.(reservation)}
+                disabled={disabled}
+                className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-gold text-navy hover:bg-gold/80 transition-all disabled:opacity-50"
+              >
+                Pay &amp; Check In
+              </button>
+            ) : (
+              <button
+                onClick={() => onNoShow?.(reservation.id, 'checkin')}
+                disabled={disabled}
+                className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
+              >
+                Check In
+              </button>
+            )
+          })()}
         </div>
       </td>
     </tr>

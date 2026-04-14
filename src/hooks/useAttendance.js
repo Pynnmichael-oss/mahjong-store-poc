@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { processQRCheckin, processCheckinByMemberNumber, addWalkIn, markNoShow, overrideNoShow } from '../services/attendanceService.js'
+import { checkInReservation } from '../services/reservationService.js'
 
 export function useAttendance() {
   const [processing, setProcessing] = useState(false)
@@ -33,6 +34,13 @@ export function useAttendance() {
     finally { setProcessing(false) }
   }
 
+  async function handleCheckin(reservationId, seatId, onSuccess) {
+    setProcessing(true); setError(null)
+    try { const r = await checkInReservation(reservationId, seatId); onSuccess?.(r) }
+    catch (err) { setError(err.message) }
+    finally { setProcessing(false) }
+  }
+
   async function handleOverride(reservationId, employeeId, onSuccess) {
     setProcessing(true); setError(null)
     try { const r = await overrideNoShow(reservationId, employeeId); onSuccess?.(r) }
@@ -40,5 +48,5 @@ export function useAttendance() {
     finally { setProcessing(false) }
   }
 
-  return { processing, error, handleQRCheckin, handleMemberNumberCheckin, handleWalkIn, handleNoShow, handleOverride }
+  return { processing, error, handleQRCheckin, handleMemberNumberCheckin, handleWalkIn, handleNoShow, handleCheckin, handleOverride }
 }

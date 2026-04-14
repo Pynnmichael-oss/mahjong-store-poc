@@ -10,6 +10,37 @@ import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
+import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
+
+const UPGRADE_PLANS = [
+  {
+    key: 'dragon_pass',
+    name: 'Dragon Pass',
+    price: '$149.99',
+    amountCents: 14999,
+    border: 'border-t-4 border-gold',
+    selectedRing: 'ring-2 ring-gold',
+    tagCls: 'bg-gold/10 text-navy border border-gold/30',
+  },
+  {
+    key: 'flower_pass',
+    name: 'Flower Pass',
+    price: '$89.99',
+    amountCents: 8999,
+    border: 'border-t-4 border-teal-500',
+    selectedRing: 'ring-2 ring-teal-500',
+    tagCls: 'bg-teal-50 text-teal-800 border border-teal-200',
+  },
+  {
+    key: 'four_winds_member',
+    name: 'Four Winds Member',
+    price: 'Free',
+    amountCents: 0,
+    border: 'border-t-4 border-navy',
+    selectedRing: 'ring-2 ring-navy',
+    tagCls: 'bg-sky-light text-navy border border-navy/20',
+  },
+]
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
@@ -39,6 +70,38 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState(null)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [upgradePlan, setUpgradePlan] = useState(null)       // selected plan key in modal
+  const [upgradeStep, setUpgradeStep] = useState('choose')   // 'choose' | 'pay'
+  const [upgradeError, setUpgradeError] = useState(null)
+  const [upgradeSuccess, setUpgradeSuccess] = useState(false)
+
+  function openUpgradeModal() {
+    setUpgradePlan(null)
+    setUpgradeStep('choose')
+    setUpgradeError(null)
+    setUpgradeSuccess(false)
+    setShowUpgradeModal(true)
+  }
+
+  async function handleFreePlanChange() {
+    const { error: dbErr } = await supabase
+      .from('profiles')
+      .update({ membership_type: upgradePlan })
+      .eq('id', user.id)
+    if (dbErr) { setUpgradeError(dbErr.message); return }
+    setUpgradeSuccess(true)
+    setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 1500)
+  }
+
+  function handleUpgradePaymentSuccess() {
+    // Payment went through — update membership
+    supabase.from('profiles').update({ membership_type: upgradePlan }).eq('id', user.id)
+      .then(({ error: dbErr }) => {
+        if (dbErr) { setUpgradeError(dbErr.message); return }
+        setUpgradeSuccess(true)
+        setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 1500)
+      })
+  }
 
   function handleNameChange(e) {
     setEditName(e.target.value)
@@ -170,7 +233,7 @@ export default function ProfilePage() {
             <p className="font-cormorant italic text-text-mid text-base">Member since {memberSince}</p>
 
             <button
-              onClick={() => setShowUpgradeModal(true)}
+              onClick={openUpgradeModal}
               className="mt-3 font-sans text-xs text-sky-mid hover:text-navy transition-colors"
             >
               Change Plan →
@@ -329,19 +392,119 @@ export default function ProfilePage() {
 
       {/* Change Plan modal */}
       {showUpgradeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
           <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm" onClick={() => setShowUpgradeModal(false)} />
-          <div className="relative bg-navy rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center">
-            <p className="font-playfair text-sky text-2xl mb-4">Coming Soon</p>
-            <p className="font-cormorant italic text-sky/70 text-lg leading-relaxed mb-6">
-              Membership upgrades will be available once payment is set up. Check back soon!
-            </p>
-            <button
-              onClick={() => setShowUpgradeModal(false)}
-              className="px-8 py-3 rounded-full font-sans text-sm font-medium bg-sky text-navy hover:bg-sky/85 transition-all"
-            >
-              Got it
-            </button>
+          <div className="relative bg-warm-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-playfair text-navy text-2xl">
+                {upgradeStep === 'choose' ? 'Change Plan' : 'Payment'}
+              </h2>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-sky-pale transition-colors"
+              >
+                <svg className="w-4 h-4 text-text-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {upgradeSuccess && (
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-center">
+                <p className="font-sans text-sm text-green-700 font-medium">Plan updated! Refreshing…</p>
+              </div>
+            )}
+
+            {!upgradeSuccess && upgradeStep === 'choose' && (
+              <div className="space-y-3">
+                {UPGRADE_PLANS.filter(p => p.key !== membershipType).map(plan => (
+                  <button
+                    key={plan.key}
+                    onClick={() => setUpgradePlan(plan.key)}
+                    className={`w-full text-left bg-white rounded-xl border p-4 transition-all ${
+                      plan.border
+                    } ${
+                      upgradePlan === plan.key ? plan.selectedRing + ' shadow-md' : 'border-navy/8 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-playfair text-navy text-lg">{plan.name}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-sans text-sm px-2.5 py-0.5 rounded-full ${plan.tagCls}`}>
+                          {plan.price}{plan.amountCents > 0 ? '/mo' : ''}
+                        </span>
+                        {upgradePlan === plan.key && (
+                          <div className="w-5 h-5 rounded-full bg-navy flex items-center justify-center flex-shrink-0">
+                            <svg className="w-3 h-3 text-sky" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+
+                {upgradeError && <Alert type="error">{upgradeError}</Alert>}
+
+                <button
+                  onClick={() => {
+                    if (!upgradePlan) return
+                    const plan = UPGRADE_PLANS.find(p => p.key === upgradePlan)
+                    if (plan?.amountCents > 0) {
+                      setUpgradeStep('pay')
+                    } else {
+                      handleFreePlanChange()
+                    }
+                  }}
+                  disabled={!upgradePlan}
+                  className="w-full mt-2 bg-navy text-sky rounded-full py-3 font-sans font-medium text-sm hover:bg-navy-deep transition-all disabled:opacity-40"
+                >
+                  {(() => {
+                    const plan = UPGRADE_PLANS.find(p => p.key === upgradePlan)
+                    if (!plan) return 'Select a plan'
+                    return plan.amountCents > 0
+                      ? `Continue to Payment — ${plan.name}`
+                      : `Switch to ${plan.name}`
+                  })()}
+                </button>
+              </div>
+            )}
+
+            {!upgradeSuccess && upgradeStep === 'pay' && (() => {
+              const plan = UPGRADE_PLANS.find(p => p.key === upgradePlan)
+              return (
+                <div className="space-y-4">
+                  {/* Plan summary */}
+                  <div className="bg-cream rounded-xl px-4 py-3 flex items-center justify-between">
+                    <p className="font-playfair text-navy text-lg">{plan?.name}</p>
+                    <p className="font-playfair text-navy text-xl">{plan?.price}<span className="font-sans text-text-soft text-sm">/mo</span></p>
+                  </div>
+
+                  {upgradeError && <Alert type="error">{upgradeError}</Alert>}
+
+                  <SquarePaymentForm
+                    amountCents={plan?.amountCents ?? 0}
+                    description={`Four Winds ${plan?.name} membership`}
+                    userId={user?.id}
+                    membershipType={upgradePlan}
+                    onSuccess={handleUpgradePaymentSuccess}
+                    onError={msg => setUpgradeError(msg)}
+                    submitLabel={`Pay ${plan?.price}`}
+                  />
+
+                  <p className="text-center">
+                    <button
+                      onClick={() => setUpgradeStep('choose')}
+                      className="font-sans text-xs text-text-soft hover:text-navy transition-colors"
+                    >
+                      ← Back
+                    </button>
+                  </p>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}

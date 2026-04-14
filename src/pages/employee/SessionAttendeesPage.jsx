@@ -11,6 +11,7 @@ import AttendeeTable from '../../components/employee/AttendeeTable.jsx'
 import WalkInForm from '../../components/employee/WalkInForm.jsx'
 import Modal from '../../components/ui/Modal.jsx'
 import Alert from '../../components/ui/Alert.jsx'
+import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
@@ -23,17 +24,32 @@ export default function SessionAttendeesPage() {
   const { seats, refreshSeats } = useSeats(sessionId)
   const {
     processing, error,
-    handleQRCheckin, handleMemberNumberCheckin, handleWalkIn, handleNoShow, handleOverride,
+    handleQRCheckin, handleMemberNumberCheckin, handleWalkIn, handleNoShow, handleCheckin, handleOverride,
   } = useAttendance()
 
   const [scanMessage, setScanMessage] = useState(null)
   const [showWalkIn, setShowWalkIn] = useState(false)
+  const [paymentTarget, setPaymentTarget] = useState(null)   // reservation object
+  const [paymentError, setPaymentError] = useState(null)
 
   function onScan(userId) {
     setScanMessage(null)
     handleQRCheckin(userId, sessionId, () => {
       setScanMessage('Checked in successfully')
       refresh(); refreshSeats()
+    })
+  }
+
+  function closePaymentModal() {
+    setPaymentTarget(null)
+    setPaymentError(null)
+  }
+
+  function onPaymentSuccess() {
+    handleCheckin(paymentTarget.id, paymentTarget.seat_id, () => {
+      setScanMessage('Payment collected — checked in!')
+      refresh()
+      closePaymentModal()
     })
   }
 
@@ -103,6 +119,7 @@ export default function SessionAttendeesPage() {
               reservations={reservations}
               onNoShow={id => handleNoShow(id, () => refresh())}
               onOverride={id => handleOverride(id, user?.id, () => refresh())}
+              onPayCheckin={r => { setPaymentTarget(r); setPaymentError(null) }}
               disabled={processing}
             />
           )}
@@ -119,6 +136,42 @@ export default function SessionAttendeesPage() {
           + Add Walk-In
         </button>
       </div>
+
+      {/* Payment modal — walk-in fee / overage fee */}
+      <Modal
+        open={!!paymentTarget}
+        onClose={closePaymentModal}
+        title="Collect Payment"
+      >
+        {paymentTarget && (
+          <div className="space-y-4">
+            <div className="bg-cream rounded-xl px-4 py-3">
+              <p className="font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-1">
+                {paymentTarget.is_walk_in ? 'Walk-In Fee' : 'Overage Fee'}
+              </p>
+              <p className="font-playfair text-navy text-xl">$20.00</p>
+              <p className="font-sans text-sm text-text-soft mt-0.5">
+                {paymentTarget.profiles?.full_name ?? paymentTarget.guest_name ?? 'Guest'}
+              </p>
+            </div>
+            {paymentError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <p className="font-sans text-sm text-red-700">{paymentError}</p>
+              </div>
+            )}
+            <SquarePaymentForm
+              amountCents={2000}
+              description={paymentTarget.is_walk_in ? 'Four Winds walk-in fee' : 'Four Winds overage session fee'}
+              userId={paymentTarget.user_id}
+              reservationId={paymentTarget.id}
+              onSuccess={onPaymentSuccess}
+              onError={msg => setPaymentError(msg)}
+              submitLabel="Collect Payment"
+              disabled={processing}
+            />
+          </div>
+        )}
+      </Modal>
 
       <Modal open={showWalkIn} onClose={() => setShowWalkIn(false)} title="Add Walk-In">
         <WalkInForm

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../services/supabase.js'
 import FloatingTiles from '../../components/layout/FloatingTiles.jsx'
 import Alert from '../../components/ui/Alert.jsx'
+import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
 
 // ─── Membership plan definitions (signup-specific) ────────────────────────────
 const PLANS = [
@@ -52,10 +53,12 @@ const PLANS = [
 ]
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
-function StepIndicator({ step }) {
+const STEP_LABELS = { 1: 'Your Details', 2: 'Choose Your Plan', 3: 'Payment' }
+
+function StepIndicator({ step, total = 2 }) {
   return (
     <div className="flex items-center justify-center gap-3 mb-6">
-      {[1, 2].map(n => (
+      {Array.from({ length: total }, (_, i) => i + 1).map(n => (
         <div key={n} className="flex items-center gap-2">
           <div className={`w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium transition-all ${
             n === step ? 'bg-navy text-sky' : n < step ? 'bg-sky-mid text-navy' : 'bg-navy/10 text-text-soft'
@@ -66,12 +69,10 @@ function StepIndicator({ step }) {
               </svg>
             ) : n}
           </div>
-          {n < 2 && <div className={`w-8 h-px ${step > 1 ? 'bg-sky-mid' : 'bg-navy/15'}`} />}
+          {n < total && <div className={`w-8 h-px ${step > n ? 'bg-sky-mid' : 'bg-navy/15'}`} />}
         </div>
       ))}
-      <p className="font-sans text-xs text-text-soft ml-1">
-        {step === 1 ? 'Your Details' : 'Choose Your Plan'}
-      </p>
+      <p className="font-sans text-xs text-text-soft ml-1">{STEP_LABELS[step] ?? ''}</p>
     </div>
   )
 }
@@ -127,8 +128,20 @@ export default function SignupPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const isPaidPlan = selected === 'dragon_pass' || selected === 'flower_pass'
+
+  // ── Step 2 → advance ──────────────────────────────────────────────────────
+  function handlePlanContinue() {
+    if (isPaidPlan) {
+      setStep(3)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      handleCreate()
+    }
+  }
+
   // ── Account creation ───────────────────────────────────────────────────────
-  async function handleCreate() {
+  async function handleCreate(paymentId) {
     setLoading(true)
     setError(null)
     const fullName = `${firstName.trim()} ${lastName.trim()}`
@@ -316,7 +329,7 @@ export default function SignupPage() {
           <div className="space-y-6">
             {/* Header card */}
             <div className="bg-navy rounded-2xl px-8 py-7 text-center shadow-2xl">
-              <StepIndicator step={2} />
+              <StepIndicator step={2} total={isPaidPlan ? 3 : 2} />
               <h2 className="font-playfair text-sky text-3xl mb-2">Choose Your Plan</h2>
               <p className="font-cormorant italic text-sky/60 text-lg">
                 You can upgrade or change anytime from your profile.
@@ -373,23 +386,18 @@ export default function SignupPage() {
               })}
             </div>
 
-            {/* Paid plan note */}
-            {(selected === 'dragon_pass' || selected === 'flower_pass') && (
-              <div className="bg-gold-light border border-gold/30 rounded-xl px-5 py-4 text-center">
-                <p className="font-cormorant italic text-navy text-base">
-                  Payment for your {selectedPlan?.name} will be set up shortly.
-                  You'll have full access in the meantime.
-                </p>
-              </div>
-            )}
 
-            {/* Create account button */}
+            {/* Create account / continue button */}
             <button
-              onClick={handleCreate}
+              onClick={handlePlanContinue}
               disabled={loading}
               className="w-full bg-navy text-sky rounded-full py-4 font-sans font-medium text-base hover:bg-navy-deep transition-all duration-200 disabled:opacity-50 shadow-lg"
             >
-              {loading ? 'Creating your account…' : `Create Account — ${selectedPlan?.name}`}
+              {loading
+                ? 'Creating your account…'
+                : isPaidPlan
+                  ? `Continue to Payment — ${selectedPlan?.name}`
+                  : `Create Account — ${selectedPlan?.name}`}
             </button>
 
             {/* Back */}
@@ -399,6 +407,53 @@ export default function SignupPage() {
                 className="font-sans text-sm text-text-soft hover:text-navy transition-colors"
               >
                 ← Back to your details
+              </button>
+            </p>
+          </div>
+        )}
+
+        {/* ── STEP 3 — Payment ── */}
+        {step === 3 && selectedPlan && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-navy rounded-2xl px-8 py-7 text-center shadow-2xl">
+              <StepIndicator step={3} total={3} />
+              <h2 className="font-playfair text-sky text-3xl mb-2">Payment</h2>
+              <p className="font-cormorant italic text-sky/60 text-lg">
+                Secure card payment via Square
+              </p>
+            </div>
+
+            {/* Plan summary */}
+            <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-playfair text-navy text-xl">{selectedPlan.name}</p>
+                  <p className="font-cormorant italic text-text-soft text-base">First month</p>
+                </div>
+                <p className="font-playfair text-navy text-2xl">{selectedPlan.price}</p>
+              </div>
+            </div>
+
+            {error && <Alert type="error">{error}</Alert>}
+
+            <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+              <SquarePaymentForm
+                amountCents={selected === 'dragon_pass' ? 14999 : 8999}
+                description={`Four Winds ${selectedPlan.name} — first month`}
+                membershipType={selected}
+                onSuccess={() => handleCreate()}
+                onError={msg => setError(msg)}
+                submitLabel={`Pay ${selectedPlan.price}`}
+              />
+            </div>
+
+            <p className="text-center">
+              <button
+                onClick={() => setStep(2)}
+                className="font-sans text-sm text-text-soft hover:text-navy transition-colors"
+              >
+                ← Back to plan selection
               </button>
             </p>
           </div>
