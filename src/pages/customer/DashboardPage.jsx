@@ -87,19 +87,21 @@ export default function DashboardPage() {
 
               <Link to="/my-qr">
                 <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px] hover:bg-white/15 transition-all cursor-pointer">
-                  <svg viewBox="0 0 24 24" className="w-8 h-8 text-sky mx-auto">
-                    <rect x="3" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
-                    <rect x="13" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
-                    <rect x="3" y="13" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
-                    <rect x="5" y="5" width="4" height="4" fill="currentColor"/>
-                    <rect x="15" y="5" width="4" height="4" fill="currentColor"/>
-                    <rect x="5" y="15" width="4" height="4" fill="currentColor"/>
-                    <rect x="13" y="13" width="2" height="2" fill="currentColor"/>
-                    <rect x="17" y="13" width="2" height="2" fill="currentColor"/>
-                    <rect x="13" y="17" width="2" height="2" fill="currentColor"/>
-                    <rect x="17" y="17" width="2" height="2" fill="currentColor"/>
-                    <rect x="15" y="15" width="2" height="2" fill="currentColor"/>
-                  </svg>
+                  <div className="flex items-center justify-center" style={{ height: '2.25rem' }}>
+                    <svg viewBox="0 0 24 24" className="w-9 h-9 text-sky" fill="currentColor">
+                      <rect x="3" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
+                      <rect x="13" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
+                      <rect x="3" y="13" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
+                      <rect x="5" y="5" width="4" height="4"/>
+                      <rect x="15" y="5" width="4" height="4"/>
+                      <rect x="5" y="15" width="4" height="4"/>
+                      <rect x="13" y="13" width="2" height="2"/>
+                      <rect x="17" y="13" width="2" height="2"/>
+                      <rect x="13" y="17" width="2" height="2"/>
+                      <rect x="17" y="17" width="2" height="2"/>
+                      <rect x="15" y="15" width="2" height="2"/>
+                    </svg>
+                  </div>
                   <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">My QR Code</p>
                 </div>
               </Link>
