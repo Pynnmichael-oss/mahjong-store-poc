@@ -3,7 +3,7 @@ import Modal from '../ui/Modal.jsx'
 import Badge from '../ui/Badge.jsx'
 import Alert from '../ui/Alert.jsx'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
-import { MEMBERSHIP_TIERS, buildReservationPayload, shouldFlagOverage, countCheckedInPlaysThisWeek } from '../../lib/businessRules.js'
+import { MEMBERSHIP_CONFIG, getMembershipLabel, getMembershipBadgeClasses, buildReservationPayload, shouldFlagOverage, countCheckedInPlaysThisWeek } from '../../lib/businessRules.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 import { updateMemberProfile, fetchMemberReservations } from '../../services/memberService.js'
 import { fetchUpcomingSessions } from '../../services/sessionService.js'
@@ -13,15 +13,9 @@ import { fetchUserReservations } from '../../services/reservationService.js'
 import { getTableForSeat } from '../../lib/businessRules.js'
 
 function TierBadge({ tier }) {
-  const t = MEMBERSHIP_TIERS[tier]
-  const style = tier === 'subscriber'
-    ? 'bg-navy text-sky'
-    : tier === 'unlimited'
-    ? 'bg-gold-light text-navy border border-gold/30'
-    : 'bg-cream text-navy border border-navy/20'
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${style}`}>
-      {t?.name ?? tier}
+    <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(tier)}`}>
+      {getMembershipLabel(tier)}
     </span>
   )
 }
@@ -209,9 +203,11 @@ export default function MemberDetailModal({ member: initialMember, open, onClose
         <div>
           <label className="block font-sans text-xs font-medium text-text-mid mb-1.5">Membership</label>
           <select value={membershipType} onChange={e => setMembershipType(e.target.value)} className={inputCls} style={{ fontSize: '16px' }}>
-            {Object.values(MEMBERSHIP_TIERS).map(t => (
-              <option key={t.key} value={t.key}>{t.name} — {t.priceLabel}</option>
-            ))}
+            <option value="dragon_pass">Dragon Pass — $149.99/mo</option>
+            <option value="flower_pass">Flower Pass — $89.99/mo</option>
+            <option value="four_winds_member">Four Winds Member — Free</option>
+            <option value="walk_in">Walk-in — Per session</option>
+            <option value="subscriber">Subscriber (legacy)</option>
           </select>
         </div>
 

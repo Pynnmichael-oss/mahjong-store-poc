@@ -5,7 +5,8 @@ import { useUserReservations } from '../../hooks/useReservations.js'
 import { useWeeklyLimit } from '../../hooks/useWeeklyLimit.js'
 import { useBuddyPass } from '../../hooks/useBuddyPass.js'
 import { supabase } from '../../services/supabase.js'
-import { MEMBERSHIP_TIERS, getPassResetDate } from '../../lib/businessRules.js'
+import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate } from '../../lib/businessRules.js'
+import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
@@ -57,11 +58,14 @@ export default function ProfilePage() {
   }
 
   const membershipType = profile?.membership_type ?? 'walk_in'
-  const tier = MEMBERSHIP_TIERS[membershipType] ?? MEMBERSHIP_TIERS.walk_in
-  const isWindPass = membershipType === 'subscriber'
-  const isDragonPass = membershipType === 'unlimited'
+  const config = getMembershipConfig(membershipType)
+  const { monthlyCount } = useMonthlySessionCount()
+  const isSubscriber = membershipType === 'subscriber'
+  const isDragonPass = membershipType === 'dragon_pass'
+  const isFlowerPass = membershipType === 'flower_pass'
   const playsMax = 3
-  const progressPct = isWindPass ? Math.min((checkedInCount / playsMax) * 100, 100) : 100
+  const progressPct = isSubscriber ? Math.min((checkedInCount / playsMax) * 100, 100) : 100
+  const monthlyPct  = isFlowerPass ? Math.min((monthlyCount / 8) * 100, 100) : 0
 
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -74,7 +78,7 @@ export default function ProfilePage() {
         <div className="max-w-6xl mx-auto">
           <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky/60 mb-2">Account</p>
           <h1 className="font-playfair text-3xl text-sky">{profile?.full_name ?? 'My Profile'}</h1>
-          <p className="font-cormorant italic text-sky/60 mt-1">{tier.tagline}</p>
+          <p className="font-cormorant italic text-sky/60 mt-1">{config.description}</p>
         </div>
       </div>
 
@@ -123,23 +127,42 @@ export default function ProfilePage() {
         <FadeUp delay={100}>
           <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
             <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-3">Membership</label>
-            <div className="flex items-center gap-3 mb-3">
-              <span className={`inline-flex items-center px-4 py-1.5 rounded-full font-sans text-xs font-medium ${
-                membershipType === 'subscriber' ? 'bg-navy text-sky' : 'bg-cream text-navy border border-navy/20'
-              }`}>
-                {tier.name}
+            <div className="flex items-center gap-3 mb-1">
+              <span className={`inline-flex items-center px-4 py-1.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(membershipType)}`}>
+                {config.label}
               </span>
-              <span className="font-sans text-sm text-text-soft">{tier.priceLabel}</span>
             </div>
+            {config.price && (
+              <p className="font-cormorant italic text-text-soft text-sm mb-3">{config.price}</p>
+            )}
+
+            {/* Dragon Pass feature pills */}
+            {isDragonPass && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {[
+                  '🎟 2 Buddy Passes / Month',
+                  '⚡ Early Event Access',
+                  '15% Event Discount',
+                ].map(label => (
+                  <span key={label} className="inline-flex items-center px-3 py-1 rounded-full font-sans text-xs bg-gold-light text-navy border border-gold/30">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <p className="font-cormorant italic text-text-mid text-base">Member since {memberSince}</p>
           </div>
         </FadeUp>
 
-        {/* Weekly plays */}
+        {/* Session usage */}
         <FadeUp delay={150}>
           <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
-            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-4">This Week</label>
-            {isWindPass ? (
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-4">
+              {isFlowerPass ? 'This Month' : 'This Week'}
+            </label>
+
+            {isSubscriber && (
               <>
                 <div className="flex justify-between font-sans text-sm mb-2">
                   <span className="text-text-mid">{checkedInCount} of {playsMax} plays used</span>
@@ -148,10 +171,8 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <div className="w-full h-2.5 bg-sky-pale rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${isOverLimit ? 'bg-gold' : 'bg-navy'}`}
-                    style={{ width: `${progressPct}%` }}
-                  />
+                  <div className={`h-full rounded-full transition-all duration-500 ${isOverLimit ? 'bg-gold' : 'bg-navy'}`}
+                    style={{ width: `${progressPct}%` }} />
                 </div>
                 {isOverLimit && (
                   <p className="font-cormorant italic text-navy text-base mt-4 leading-relaxed bg-gold-light rounded-xl px-4 py-3">
@@ -159,16 +180,40 @@ export default function ProfilePage() {
                   </p>
                 )}
               </>
-            ) : isDragonPass ? (
-              <p className="font-cormorant italic text-sky-mid text-lg">Unlimited plays — no weekly limits.</p>
-            ) : (
-              <p className="font-cormorant italic text-text-mid text-lg">Unlimited plays — walk-in rates apply per session.</p>
+            )}
+
+            {isFlowerPass && (
+              <>
+                <div className="flex justify-between font-sans text-sm mb-2">
+                  <span className="text-text-mid">{monthlyCount} of 8 sessions used</span>
+                  <span className={monthlyCount >= 8 ? 'text-gold font-medium' : 'text-teal-700 font-medium'}>
+                    {monthlyCount >= 8 ? 'Limit reached' : `${8 - monthlyCount} remaining`}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 bg-teal-50 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all duration-500 ${monthlyCount >= 8 ? 'bg-gold' : 'bg-teal-500'}`}
+                    style={{ width: `${monthlyPct}%` }} />
+                </div>
+                {monthlyCount >= 8 && (
+                  <p className="font-cormorant italic text-navy text-base mt-4 leading-relaxed bg-gold-light rounded-xl px-4 py-3">
+                    You've used all 8 sessions this month. Walk-in pricing applies at the door.
+                  </p>
+                )}
+              </>
+            )}
+
+            {isDragonPass && (
+              <p className="font-cormorant italic text-sky-mid text-lg">Unlimited plays — no restrictions.</p>
+            )}
+
+            {!isSubscriber && !isFlowerPass && !isDragonPass && (
+              <p className="font-cormorant italic text-text-mid text-lg">Walk-in rates apply per session.</p>
             )}
           </div>
         </FadeUp>
 
-        {/* Buddy Passes — subscribers only */}
-        {isWindPass && (
+        {/* Buddy Passes — dragon_pass eligible */}
+        {isBuddyPassEligible(membershipType) && (
           <FadeUp delay={200}>
             <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
               {passLoading ? (

@@ -1,28 +1,36 @@
 import Badge from '../ui/Badge.jsx'
-import { getTableForSeat } from '../../lib/businessRules.js'
+import { getTableForSeat, getMembershipBadgeClasses, getMembershipLabel } from '../../lib/businessRules.js'
 
 export default function AttendeeRow({ reservation, onNoShow, onOverride, disabled, index }) {
   const profile  = reservation.profiles
   const seat     = reservation.seats
   const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
   const isAlt    = index % 2 === 1
-  const isGuest      = reservation.is_guest === true
-  const isBuddyPass  = reservation.is_buddy_pass === true
-  const name         = isGuest ? reservation.guest_name : profile?.full_name
+  const isGuest        = reservation.is_guest === true
+  const isBuddyPass    = reservation.is_buddy_pass === true
+  const isDragonPass   = !isGuest && profile?.membership_type === 'dragon_pass'
+  const memberTier     = !isGuest ? profile?.membership_type : null
+  const name           = isGuest ? reservation.guest_name : profile?.full_name
 
   return (
     <tr className={`border-b border-navy/5 last:border-0 ${isAlt ? 'bg-sky-pale' : 'bg-white'}`}>
       {/* Name */}
       <td className="py-4 px-4 min-h-[56px]">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-sans font-medium text-navy text-sm">{name ?? '—'}</span>
+          <span className="font-sans font-medium text-navy text-sm">
+            {isDragonPass && <span className="mr-1">⭐</span>}{name ?? '—'}
+          </span>
           {isBuddyPass ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold text-navy">
               Buddy Pass
             </span>
-          ) : isGuest && (
+          ) : isGuest ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold-light text-navy border border-gold/30">
               Guest
+            </span>
+          ) : memberTier && memberTier !== 'walk_in' && memberTier !== 'subscriber' && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(memberTier)}`}>
+              {getMembershipLabel(memberTier)}
             </span>
           )}
         </div>

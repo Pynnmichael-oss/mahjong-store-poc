@@ -6,18 +6,12 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 import EmptyState from '../../components/ui/EmptyState.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
-import { MEMBERSHIP_TIERS } from '../../lib/businessRules.js'
+import { MEMBERSHIP_CONFIG, getMembershipLabel, getMembershipBadgeClasses } from '../../lib/businessRules.js'
 
 function TierBadge({ tier }) {
-  const t = MEMBERSHIP_TIERS[tier]
-  const style = tier === 'subscriber'
-    ? 'bg-navy text-sky'
-    : tier === 'unlimited'
-    ? 'bg-gold-light text-navy border border-gold/30'
-    : 'bg-cream text-navy border border-navy/20'
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${style}`}>
-      {t?.name ?? tier}
+    <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(tier)}`}>
+      {getMembershipLabel(tier)}
     </span>
   )
 }
@@ -63,7 +57,7 @@ export default function MembersPage() {
   )
 
   const counts = Object.fromEntries(
-    Object.keys(MEMBERSHIP_TIERS).map(k => [k, members.filter(m => m.membership_type === k).length])
+    Object.keys(MEMBERSHIP_CONFIG).map(k => [k, members.filter(m => m.membership_type === k).length])
   )
 
   function handleSaved(updated) {
@@ -83,12 +77,12 @@ export default function MembersPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
         <FadeUp>
-          <div className="grid grid-cols-3 gap-4">
-            {Object.values(MEMBERSHIP_TIERS).map(t => (
-              <div key={t.key} className="bg-white rounded-2xl border border-navy/8 shadow-sm p-5 text-center">
-                <p className="font-playfair text-3xl text-navy">{counts[t.key] ?? 0}</p>
-                <p className="font-sans text-sm text-navy font-medium mt-1">{t.name}</p>
-                <p className="font-sans text-xs text-text-soft">{t.priceLabel}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {Object.entries(MEMBERSHIP_CONFIG).map(([k, t]) => (
+              <div key={k} className="bg-white rounded-2xl border border-navy/8 shadow-sm p-4 text-center">
+                <p className="font-playfair text-3xl text-navy">{counts[k] ?? 0}</p>
+                <p className="font-sans text-xs text-navy font-medium mt-1">{t.label}</p>
+                <p className="font-sans text-xs text-text-soft">{t.price}</p>
               </div>
             ))}
           </div>

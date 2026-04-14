@@ -2,19 +2,17 @@ import { getWeekBoundaries, nowInChicago } from './dateUtils.js'
 
 export { getWeekBoundaries }
 
+// ─── Seat / table helpers ─────────────────────────────────────────────────────
+
 export const TABLE_NAMES = [
   'Table 1', 'Table 2', 'Table 3', 'Table 4',
   'Table 5', 'Table 6', 'Table 7', 'Table 8',
 ]
 
 export function getTableForSeat(seatNumber) {
-  const tableIndex = Math.floor((seatNumber - 1) / 4)
-  const seatPosition = ((seatNumber - 1) % 4)
-  return {
-    tableName: TABLE_NAMES[tableIndex],
-    tableIndex,
-    seatPosition,
-  }
+  const tableIndex    = Math.floor((seatNumber - 1) / 4)
+  const seatPosition  = ((seatNumber - 1) % 4)
+  return { tableName: TABLE_NAMES[tableIndex], tableIndex, seatPosition }
 }
 
 export function countCheckedInPlaysThisWeek(reservations) {
@@ -28,42 +26,157 @@ export function countCheckedInPlaysThisWeek(reservations) {
   }).length
 }
 
-// Membership tier definitions
-export const MEMBERSHIP_TIERS = {
-  unlimited: {
-    key: 'unlimited',
-    name: 'Dragon Pass',
-    tagline: 'Unlimited play, anytime',
-    price: 100,
-    priceLabel: '$100 / month',
-    weeklyLimit: null,
-    color: 'navy',
+// ─── Membership config ────────────────────────────────────────────────────────
+
+export const MEMBERSHIP_CONFIG = {
+  dragon_pass: {
+    label:           'Dragon Pass',
+    price:           '$149.99/mo',
+    description:     'Unlimited access + buddy passes',
+    color:           'gold',
+    weeklyLimit:     null,
+    monthlyLimit:    null,
+    buddyPasses:     2,
+    saturdayBlocked: false,
+    saturdayWarning: false,
+    earlyEvents:     true,
+    eventDiscount:   0.15,
   },
-  subscriber: {
-    key: 'subscriber',
-    name: 'Wind Pass',
-    tagline: '3 sessions per week',
-    price: 50,
-    priceLabel: '$50 / month',
-    weeklyLimit: 3,
-    color: 'teal',
+  flower_pass: {
+    label:           'Flower Pass',
+    price:           '$89.99/mo',
+    description:     '8 sessions per month',
+    color:           'teal',
+    weeklyLimit:     null,
+    monthlyLimit:    8,
+    buddyPasses:     0,
+    saturdayBlocked: false,
+    saturdayWarning: true,
+    earlyEvents:     false,
+    eventDiscount:   0,
+  },
+  four_winds_member: {
+    label:           'Four Winds Member',
+    price:           'Free',
+    description:     'Walk-in price per session',
+    color:           'navy',
+    weeklyLimit:     null,
+    monthlyLimit:    null,
+    buddyPasses:     0,
+    saturdayBlocked: false,
+    saturdayWarning: false,
+    earlyEvents:     false,
+    eventDiscount:   0,
   },
   walk_in: {
-    key: 'walk_in',
-    name: 'Bamboo',
-    tagline: 'Drop in anytime — pay per session',
-    price: 20,
-    priceLabel: '$20 / session',
-    weeklyLimit: null,
-    color: 'muted',
+    label:           'Walk-in',
+    price:           'Per session',
+    description:     'Pay per session',
+    color:           'sand',
+    weeklyLimit:     null,
+    monthlyLimit:    null,
+    buddyPasses:     0,
+    saturdayBlocked: false,
+    saturdayWarning: false,
+    earlyEvents:     false,
+    eventDiscount:   0,
+  },
+  subscriber: {
+    label:           'Subscriber',
+    price:           '',
+    description:     '3 plays per week',
+    color:           'navy',
+    weeklyLimit:     3,
+    monthlyLimit:    null,
+    buddyPasses:     0,
+    saturdayBlocked: false,
+    saturdayWarning: false,
+    earlyEvents:     false,
+    eventDiscount:   0,
   },
 }
 
-export function shouldFlagOverage(membershipType, checkedInCount) {
-  // Only Wind Pass (subscriber) has a weekly limit
-  if (membershipType !== 'subscriber') return false
-  return checkedInCount >= 3
+export function getMembershipConfig(type) {
+  return MEMBERSHIP_CONFIG[type] ?? MEMBERSHIP_CONFIG['walk_in']
 }
+
+export function getMembershipLabel(type) {
+  return getMembershipConfig(type).label
+}
+
+export function getMembershipDescription(type) {
+  return getMembershipConfig(type).description
+}
+
+// Returns Tailwind classes for the membership badge pill
+export function getMembershipBadgeClasses(type) {
+  const map = {
+    dragon_pass:       'bg-gold text-navy',
+    flower_pass:       'bg-teal-100 text-teal-800 border border-teal-200',
+    four_winds_member: 'bg-navy text-sky',
+    walk_in:           'bg-cream text-navy border border-navy/20',
+    subscriber:        'bg-navy text-sky',
+    unlimited:         'bg-gold-light text-navy border border-gold/30',
+  }
+  return map[type] ?? map.walk_in
+}
+
+// Backward-compat shim — keeps old field names working for files not yet migrated
+// Also preserves the legacy `unlimited` type so existing DB rows don't break
+export const MEMBERSHIP_TIERS = {
+  ...Object.fromEntries(
+    Object.entries(MEMBERSHIP_CONFIG).map(([k, v]) => [k, {
+      ...v,
+      key:        k,
+      name:       v.label,
+      priceLabel: v.price,
+      tagline:    v.description,
+    }])
+  ),
+  unlimited: {
+    key: 'unlimited', name: 'Dragon Pass (legacy)', label: 'Dragon Pass (legacy)',
+    priceLabel: '$100/mo', price: '$100/mo',
+    tagline: 'Unlimited play, anytime', description: 'Unlimited play, anytime',
+    weeklyLimit: null, monthlyLimit: null, buddyPasses: 0,
+    saturdayBlocked: false, saturdayWarning: false,
+  },
+}
+
+// ─── Membership predicates ────────────────────────────────────────────────────
+
+export function isBuddyPassEligible(membershipType) {
+  return getMembershipConfig(membershipType).buddyPasses > 0
+}
+
+export function hasSaturdayWarning(membershipType) {
+  return getMembershipConfig(membershipType).saturdayWarning === true
+}
+
+export function hasMonthlyLimit(membershipType) {
+  return getMembershipConfig(membershipType).monthlyLimit !== null
+}
+
+export function getMonthlyLimit(membershipType) {
+  return getMembershipConfig(membershipType).monthlyLimit
+}
+
+export function shouldFlagOverage(membershipType, weeklyCount) {
+  const config = getMembershipConfig(membershipType)
+  if (!config.weeklyLimit) return false
+  return weeklyCount >= config.weeklyLimit
+}
+
+export function shouldWarnMonthlyLimit(membershipType, monthlyCount) {
+  const config = getMembershipConfig(membershipType)
+  if (!config.monthlyLimit) return false
+  return monthlyCount >= config.monthlyLimit
+}
+
+export function hasEarlyEventAccess(membershipType) {
+  return getMembershipConfig(membershipType).earlyEvents === true
+}
+
+// ─── Session / reservation helpers ───────────────────────────────────────────
 
 export function isWithinCheckinWindow(session) {
   const now = nowInChicago()
@@ -90,9 +203,7 @@ export function getEventRsvpStatus(confirmedCount, capacity) {
   return confirmedCount < capacity ? 'confirmed' : 'waitlisted'
 }
 
-export function isBuddyPassEligible(membershipType) {
-  return membershipType === 'subscriber'
-}
+// ─── Buddy pass helpers ───────────────────────────────────────────────────────
 
 export function getBuddyPassMonth() {
   const now = nowInChicago()

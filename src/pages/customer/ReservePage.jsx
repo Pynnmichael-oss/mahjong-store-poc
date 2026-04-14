@@ -12,7 +12,8 @@ import Alert from '../../components/ui/Alert.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import { createReservation } from '../../services/reservationService.js'
-import { buildReservationPayload, getTableForSeat } from '../../lib/businessRules.js'
+import { buildReservationPayload, getTableForSeat, hasSaturdayWarning, shouldWarnMonthlyLimit } from '../../lib/businessRules.js'
+import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 
 export default function ReservePage() {
@@ -23,6 +24,7 @@ export default function ReservePage() {
   const { seats, loading: seatsLoading, refreshSeats } = useSeats(sessionId)
   const { reservations } = useUserReservations(user?.id)
   const { checkedInCount, isOverLimit } = useWeeklyLimit(reservations, profile?.membership_type)
+  const { monthlyCount } = useMonthlySessionCount()
 
   const [selectedSeat, setSelectedSeat] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -107,6 +109,29 @@ export default function ReservePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
           {isOverLimit && profile?.membership_type === 'subscriber' && (
             <FadeUp><OverageFlagBanner checkedInCount={checkedInCount} /></FadeUp>
+          )}
+
+          {/* Saturday warning — Flower Pass */}
+          {session && hasSaturdayWarning(profile?.membership_type) &&
+            new Date(session.date + 'T12:00:00').getDay() === 6 && (
+            <FadeUp>
+              <div className="bg-gold-light border border-gold/30 rounded-2xl px-5 py-4">
+                <p className="font-cormorant italic text-navy text-base leading-relaxed">
+                  Saturday sessions are not included in your Flower Pass. Walk-in pricing applies at the door.
+                </p>
+              </div>
+            </FadeUp>
+          )}
+
+          {/* Monthly limit warning — Flower Pass */}
+          {shouldWarnMonthlyLimit(profile?.membership_type, monthlyCount) && (
+            <FadeUp>
+              <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+                <p className="font-cormorant italic text-red-700 text-base leading-relaxed">
+                  You've used {monthlyCount} of 8 sessions this month. You can still reserve but walk-in pricing may apply.
+                </p>
+              </div>
+            </FadeUp>
           )}
           {error && <Alert type="error">{error}</Alert>}
 

@@ -4,7 +4,8 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import { useUserReservations } from '../../hooks/useReservations.js'
 import { useWeeklyLimit } from '../../hooks/useWeeklyLimit.js'
 import FadeUp from '../../components/ui/FadeUp.jsx'
-import { MEMBERSHIP_TIERS } from '../../lib/businessRules.js'
+import { getMembershipLabel, getMembershipDescription, hasMonthlyLimit, getMonthlyLimit } from '../../lib/businessRules.js'
+import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 import { getTableForSeat } from '../../lib/businessRules.js'
 
@@ -27,6 +28,10 @@ export default function DashboardPage() {
   const nextReservation = upcoming[0]
 
   const membershipType = profile?.membership_type ?? 'walk_in'
+  const { monthlyCount } = useMonthlySessionCount()
+  const isFlowerPass = membershipType === 'flower_pass'
+  const isDragonPass = membershipType === 'dragon_pass' || membershipType === 'unlimited'
+  const isSubscriber = membershipType === 'subscriber'
 
   const memberSinceDate = profile?.created_at ? new Date(profile.created_at) : null
   const memberSinceMonth = memberSinceDate
@@ -34,12 +39,9 @@ export default function DashboardPage() {
     : '—'
   const memberSinceYear = memberSinceDate ? memberSinceDate.getFullYear() : ''
 
-  const membershipLabel = membershipType === 'subscriber' ? 'Subscriber'
-    : membershipType === 'unlimited' ? 'Dragon Pass'
-    : 'Walk-in'
-  const membershipSub = membershipType === 'subscriber' ? '3 plays/week included'
-    : membershipType === 'unlimited' ? 'Unlimited plays'
-    : 'Pay per session'
+  const membershipLabel = getMembershipLabel(membershipType)
+  const membershipSub   = getMembershipDescription(membershipType)
+  const monthlyLimit    = getMonthlyLimit(membershipType)
 
   // Next session card data
   const nextSession = nextReservation?.sessions
@@ -67,12 +69,13 @@ export default function DashboardPage() {
             <div className="flex gap-4 flex-wrap">
               <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">
                 <p className="font-playfair text-sky text-3xl font-bold">
-                  {membershipType === 'unlimited' ? '∞' : checkedInCount}
-                  {membershipType === 'subscriber' && (
-                    <span className="text-sky/40 text-lg">/3</span>
-                  )}
+                  {isDragonPass ? '∞' : isFlowerPass ? monthlyCount : checkedInCount}
+                  {isSubscriber && <span className="text-sky/40 text-lg">/3</span>}
+                  {isFlowerPass && monthlyLimit && <span className="text-sky/40 text-lg">/{monthlyLimit}</span>}
                 </p>
-                <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">Plays this week</p>
+                <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">
+                  {isFlowerPass ? 'Sessions this month' : 'Plays this week'}
+                </p>
               </div>
 
               <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px]">

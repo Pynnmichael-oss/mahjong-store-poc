@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
+import { isBuddyPassEligible } from '../lib/businessRules.js'
 import { getOrCreateBuddyPass } from '../services/buddyPassService.js'
 
 export function useBuddyPass() {
@@ -9,7 +10,7 @@ export function useBuddyPass() {
   const [error, setError] = useState(null)
 
   async function refresh() {
-    if (profile?.membership_type !== 'subscriber') return
+    if (!isBuddyPassEligible(profile?.membership_type)) return
     setLoading(true)
     setError(null)
     try {
@@ -25,7 +26,10 @@ export function useBuddyPass() {
     }
   }
 
-  useEffect(() => { refresh() }, [profile?.id, profile?.membership_type])
+  useEffect(() => {
+    if (!isBuddyPassEligible(profile?.membership_type)) { setLoading(false); return }
+    refresh()
+  }, [profile?.id, profile?.membership_type])
 
   return { pass, loading, error, refresh }
 }
