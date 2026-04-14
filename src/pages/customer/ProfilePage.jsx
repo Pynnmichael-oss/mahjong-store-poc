@@ -8,16 +8,12 @@ import { supabase } from '../../services/supabase.js'
 import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate } from '../../lib/businessRules.js'
 import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
-import Badge from '../../components/ui/Badge.jsx'
-import EmptyState from '../../components/ui/EmptyState.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
-import { getTableForSeat } from '../../lib/businessRules.js'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
-  const { reservations, loading: resLoading } = useUserReservations(user?.id)
+  const { reservations } = useUserReservations(user?.id)
   const { checkedInCount, isOverLimit } = useWeeklyLimit(reservations, profile?.membership_type)
   const { pass: buddyPass, loading: passLoading, error: passError } = useBuddyPass()
   const [copied, setCopied] = useState(false)
@@ -328,62 +324,6 @@ export default function ProfilePage() {
             </div>
           </FadeUp>
         )}
-
-        {/* Play History */}
-        <FadeUp delay={250}>
-          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
-            <div className="border-t border-navy/10 pt-6 mt-0">
-              <p className="font-playfair text-navy text-xl mb-4">Play History</p>
-              {resLoading ? (
-                <LoadingSpinner />
-              ) : (() => {
-                const today = new Date().toISOString().split('T')[0]
-                const past = [...reservations]
-                  .filter(r => (r.sessions?.date ?? '') < today || ['checked_in', 'no_show', 'cancelled'].includes(r.status))
-                  .sort((a, b) => new Date(b.reserved_at ?? b.created_at) - new Date(a.reserved_at ?? a.created_at))
-                  .slice(0, 20)
-
-                if (past.length === 0) {
-                  return <EmptyState message="No history yet. See you at the table." />
-                }
-
-                return (
-                  <div className="rounded-xl border border-navy/8 overflow-hidden">
-                    {past.map((r, i) => {
-                      const session = r.sessions
-                      const seat = r.seats
-                      const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
-                      const isAlt = i % 2 === 1
-                      return (
-                        <div
-                          key={r.id}
-                          className={`flex items-center justify-between gap-4 px-5 py-4 border-b border-navy/5 last:border-0 ${isAlt ? 'bg-sky-pale' : 'bg-white'}`}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-playfair text-navy text-base leading-tight">
-                              {session ? formatSessionDate(session.date) : '—'}
-                            </p>
-                            <p className="font-sans text-sm text-text-mid mt-0.5">
-                              {session ? `${formatTime(session.start_time)} – ${formatTime(session.end_time)}` : ''}
-                            </p>
-                            {tableInfo && (
-                              <p className="font-sans text-xs text-text-soft mt-0.5">
-                                {tableInfo.tableName} Table · Seat {seat.seat_number}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex-shrink-0">
-                            <Badge status={r.status} />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-            </div>
-          </div>
-        </FadeUp>
 
       </div>
 
