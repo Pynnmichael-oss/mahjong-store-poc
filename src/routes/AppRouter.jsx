@@ -1,6 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute, EmployeeRoute, PublicOnlyRoute } from './ProtectedRoute.jsx'
-import LandingPage from '../pages/LandingPage.jsx'
+import AboutPage from '../pages/AboutPage.jsx'
 import LoginPage from '../pages/auth/LoginPage.jsx'
 import SignupPage from '../pages/auth/SignupPage.jsx'
 import DashboardPage from '../pages/customer/DashboardPage.jsx'
@@ -21,7 +21,7 @@ export default function AppRouter() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<AboutPage />} />
         <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route path="/signup" element={<PublicOnlyRoute><SignupPage /></PublicOnlyRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
