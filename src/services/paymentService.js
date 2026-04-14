@@ -13,8 +13,11 @@ import { supabase } from './supabase.js'
  * @returns {{ paymentId: string, squarePaymentId: string }}
  */
 export async function chargeCard({ sourceId, amountCents, description, userId, reservationId, membershipType }) {
+  const { data: { session } } = await supabase.auth.getSession()
+
   const { data, error } = await supabase.functions.invoke('square-payment', {
     body: { sourceId, amountCents, description, userId, reservationId, membershipType },
+    headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
   })
 
   if (error) {
