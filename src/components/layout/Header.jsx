@@ -24,7 +24,6 @@ export default function Header() {
     { to: '/sessions', label: 'Sessions' },
     { to: '/events',   label: 'Events'   },
     { to: '/my-qr',   label: 'My QR'    },
-    { to: '/history',  label: 'History'  },
     { to: '/profile',  label: 'Profile'  },
   ]
 
