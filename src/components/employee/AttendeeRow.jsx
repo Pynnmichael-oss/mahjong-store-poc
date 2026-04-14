@@ -6,8 +6,9 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, disable
   const seat     = reservation.seats
   const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
   const isAlt    = index % 2 === 1
-  const isGuest  = reservation.is_guest === true
-  const name     = isGuest ? reservation.guest_name : profile?.full_name
+  const isGuest      = reservation.is_guest === true
+  const isBuddyPass  = reservation.is_buddy_pass === true
+  const name         = isGuest ? reservation.guest_name : profile?.full_name
 
   return (
     <tr className={`border-b border-navy/5 last:border-0 ${isAlt ? 'bg-sky-pale' : 'bg-white'}`}>
@@ -15,7 +16,11 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, disable
       <td className="py-4 px-4 min-h-[56px]">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-sans font-medium text-navy text-sm">{name ?? '—'}</span>
-          {isGuest && (
+          {isBuddyPass ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold text-navy">
+              Buddy Pass
+            </span>
+          ) : isGuest && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold-light text-navy border border-gold/30">
               Guest
             </span>

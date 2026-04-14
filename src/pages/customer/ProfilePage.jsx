@@ -3,15 +3,35 @@ import PageWrapper from '../../components/layout/PageWrapper.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useUserReservations } from '../../hooks/useReservations.js'
 import { useWeeklyLimit } from '../../hooks/useWeeklyLimit.js'
+import { useBuddyPass } from '../../hooks/useBuddyPass.js'
 import { supabase } from '../../services/supabase.js'
-import { MEMBERSHIP_TIERS } from '../../lib/businessRules.js'
+import { MEMBERSHIP_TIERS, getPassResetDate } from '../../lib/businessRules.js'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
+import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
   const { reservations } = useUserReservations(user?.id)
   const { checkedInCount, isOverLimit } = useWeeklyLimit(reservations, profile?.membership_type)
+  const { pass: buddyPass, loading: passLoading } = useBuddyPass()
+  const [copied, setCopied] = useState(false)
+
+  function copyCode() {
+    navigator.clipboard.writeText(buddyPass?.code ?? '').then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  function shareCode() {
+    const text = `Use my Four Winds buddy pass code to book a free walk-in session: ${buddyPass?.code}`
+    if (navigator.share) {
+      navigator.share({ title: 'Four Winds Buddy Pass', text }).catch(() => {})
+    } else {
+      copyCode()
+    }
+  }
 
   const [editName, setEditName] = useState(profile?.full_name ?? '')
   const [nameChanged, setNameChanged] = useState(false)
@@ -146,6 +166,94 @@ export default function ProfilePage() {
             )}
           </div>
         </FadeUp>
+
+        {/* Buddy Passes — subscribers only */}
+        {isWindPass && (
+          <FadeUp delay={200}>
+            <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+              {passLoading ? (
+                <div className="flex justify-center py-4"><LoadingSpinner /></div>
+              ) : buddyPass ? (() => {
+                const used      = buddyPass.used_count ?? 0
+                const max       = buddyPass.max_uses ?? 2
+                const remaining = buddyPass.passes_remaining ?? (max - used)
+                const monthLabel = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+                return (
+                  <>
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-5">
+                      <p className="font-sans text-sm font-medium text-navy">Buddy Passes</p>
+                      <p className="font-sans text-sm text-text-soft">{monthLabel}</p>
+                    </div>
+
+                    {/* Pass circles */}
+                    <div className="flex items-center justify-center gap-4 mb-3">
+                      {Array.from({ length: max }).map((_, i) => {
+                        const isUsed = i < used
+                        return (
+                          <div
+                            key={i}
+                            className={`w-16 h-16 rounded-full flex items-center justify-center border-2 ${
+                              isUsed
+                                ? 'bg-navy border-navy'
+                                : 'bg-white border-navy'
+                            }`}
+                          >
+                            {isUsed ? (
+                              <svg className="w-7 h-7 text-sky" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <span className="font-playfair text-navy text-xl">{i + 1 - used}</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <p className="font-cormorant italic text-text-mid text-sm text-center mb-5">
+                      {used} used · {remaining} remaining this month
+                    </p>
+
+                    {/* All used banner */}
+                    {remaining === 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5">
+                        <p className="font-cormorant italic text-red-700 text-sm text-center">
+                          Both passes used this month. Resets on {getPassResetDate()}.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Code display */}
+                    <div className="border border-dashed border-navy/20 rounded-xl p-4 bg-cream text-center">
+                      <p className="font-sans text-[10px] uppercase tracking-[4px] text-text-soft mb-2">Your Pass Code</p>
+                      <p className="font-playfair text-navy text-2xl tracking-widest mb-4">
+                        {buddyPass.code}
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={copyCode}
+                          className="px-4 py-2 rounded-full font-sans text-xs font-medium border border-navy/20 text-navy hover:bg-sky-pale transition-all"
+                        >
+                          {copied ? 'Copied!' : 'Copy Code'}
+                        </button>
+                        <button
+                          onClick={shareCode}
+                          className="px-4 py-2 rounded-full font-sans text-xs font-medium text-text-soft border border-navy/10 hover:border-navy/20 hover:text-navy transition-all"
+                        >
+                          Share
+                        </button>
+                      </div>
+                    </div>
+                    <p className="font-cormorant italic text-text-soft text-xs text-center mt-3 leading-relaxed">
+                      Share this code with a friend. They'll enter it when booking their walk-in session.
+                    </p>
+                  </>
+                )
+              })() : null}
+            </div>
+          </FadeUp>
+        )}
 
       </div>
     </PageWrapper>

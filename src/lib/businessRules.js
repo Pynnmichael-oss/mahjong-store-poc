@@ -89,3 +89,20 @@ export function buildReservationPayload({ userId, sessionId, seatId, membershipT
 export function getEventRsvpStatus(confirmedCount, capacity) {
   return confirmedCount < capacity ? 'confirmed' : 'waitlisted'
 }
+
+export function isBuddyPassEligible(membershipType) {
+  return membershipType === 'subscriber'
+}
+
+export function getBuddyPassMonth() {
+  const now = nowInChicago()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+export function getPassResetDate() {
+  const now = nowInChicago()
+  const firstOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  return firstOfNextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+}

@@ -10,6 +10,8 @@ import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../components/ui/FadeUp.jsx'
 import { supabase } from '../services/supabase.js'
 import { formatSessionDate, formatTime } from '../lib/dateUtils.js'
+import { checkBuddyPassCode, redeemBuddyPass } from '../services/buddyPassService.js'
+import { getTableForSeat } from '../lib/businessRules.js'
 
 // ─── Public nav ───────────────────────────────────────────────────────────────
 
@@ -156,7 +158,7 @@ function SeatStep({ session, selectedSeat, onSelect }) {
   return <SeatMap seats={seats} selectedSeat={selectedSeat} onSelect={onSelect} />
 }
 
-function ConfirmationCard({ confirmation, onReset }) {
+function ConfirmationCard({ confirmation, onReset, isBuddyPass = false }) {
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-white rounded-2xl border-t-4 border-gold shadow-xl p-8 text-center">
@@ -166,6 +168,11 @@ function ConfirmationCard({ confirmation, onReset }) {
           </svg>
         </div>
         <h2 className="font-playfair text-3xl text-navy mb-1">You're booked!</h2>
+        {isBuddyPass && (
+          <span className="inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium bg-gold text-navy mb-3">
+            Buddy Pass
+          </span>
+        )}
         <p className="font-cormorant italic text-text-mid text-lg mb-6">Show this screen when you arrive</p>
         <div className="bg-cream rounded-xl p-5 text-left space-y-3 mb-6">
           <div>
@@ -211,6 +218,95 @@ export default function AboutPage() {
     selectSession, selectSeat, backToSessions, backToSeats,
     submitBooking, reset,
   } = useGuestBooking()
+
+  // Payment step state
+  const [paymentType, setPaymentType]     = useState('walk_in')    // 'walk_in' | 'buddy_pass'
+  const [paymentStage, setPaymentStage]   = useState('select')     // 'select' | 'details'
+  const [buddyCode, setBuddyCode]         = useState('')
+  const [codeStatus, setCodeStatus]       = useState(null)          // null | 'checking' | 'valid' | 'invalid'
+  const [codeValidation, setCodeValidation] = useState(null)
+  const [codeError, setCodeError]         = useState(null)
+  const [buddyConfirmation, setBuddyConfirmation] = useState(null)
+  const [redeeming, setRedeeming]         = useState(false)
+  const [redeemError, setRedeemError]     = useState(null)
+
+  function resetPaymentState() {
+    setPaymentType('walk_in')
+    setPaymentStage('select')
+    setBuddyCode('')
+    setCodeStatus(null)
+    setCodeValidation(null)
+    setCodeError(null)
+    setRedeemError(null)
+  }
+
+  function handleBackToSeats() {
+    backToSeats()
+    resetPaymentState()
+  }
+
+  async function handleBuddyValidate() {
+    if (!buddyCode.trim()) return
+    setCodeStatus('checking')
+    setCodeError(null)
+    setCodeValidation(null)
+    try {
+      const result = await checkBuddyPassCode(buddyCode.trim())
+      setCodeValidation(result)
+      setCodeStatus('valid')
+    } catch (err) {
+      setCodeError(err.message)
+      setCodeStatus('invalid')
+    }
+  }
+
+  async function handleBuddyRedeem() {
+    if (!guestName.trim() || !guestPhone.trim()) return
+    setRedeeming(true)
+    setRedeemError(null)
+    try {
+      await redeemBuddyPass(
+        buddyCode,
+        selectedSession.id,
+        selectedSeat.id,
+        guestName.trim(),
+        guestPhone.trim()
+      )
+      const tableInfo   = getTableForSeat(selectedSeat.seat_number)
+      const sessionDate = formatSessionDate(selectedSession.date)
+      const sessionTime = `${formatTime(selectedSession.start_time)} – ${formatTime(selectedSession.end_time)}`
+      setBuddyConfirmation({
+        sessionDate,
+        sessionTime,
+        tableName:  tableInfo.tableName,
+        seatNumber: selectedSeat.seat_number,
+        guestName:  guestName.trim(),
+      })
+      // Send SMS same as walk-in flow
+      try {
+        await supabase.functions.invoke('send-sms', {
+          body: {
+            phone:       guestPhone.trim(),
+            guestName:   guestName.trim(),
+            sessionDate,
+            sessionTime,
+            tableName:   tableInfo.tableName,
+            seatNumber:  selectedSeat.seat_number,
+          },
+        })
+      } catch (_) { /* non-critical */ }
+    } catch (err) {
+      setRedeemError(err.message)
+    } finally {
+      setRedeeming(false)
+    }
+  }
+
+  function handleFullReset() {
+    reset()
+    setBuddyConfirmation(null)
+    resetPaymentState()
+  }
 
   // Redirect logged-in users
   useEffect(() => {
@@ -457,9 +553,13 @@ export default function AboutPage() {
       <section id="book" ref={bookingRef} className="bg-warm-white py-20 px-4 sm:px-8">
         <div className="max-w-3xl mx-auto">
 
-          {step === 'confirmed' ? (
+          {(step === 'confirmed' || buddyConfirmation) ? (
             <FadeUp>
-              <ConfirmationCard confirmation={confirmation} onReset={reset} />
+              <ConfirmationCard
+                confirmation={buddyConfirmation ?? confirmation}
+                onReset={handleFullReset}
+                isBuddyPass={!!buddyConfirmation}
+              />
             </FadeUp>
           ) : (
             <>
@@ -535,24 +635,122 @@ export default function AboutPage() {
                 </FadeUp>
               )}
 
-              {/* Step 3 — details */}
-              {step === 3 && selectedSeat && (
+              {/* Step 3 — payment type */}
+              {step === 3 && selectedSeat && paymentStage === 'select' && (
                 <FadeUp>
-                  <div>
+                  <div className="mb-8">
                     <div className="flex items-center gap-3 mb-4">
-                      <span className="w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium flex-shrink-0 bg-navy text-sky">
-                        3
-                      </span>
-                      <h3 className="font-playfair text-lg text-navy">Your Details</h3>
-                      <button
-                        onClick={backToSeats}
-                        className="ml-auto font-sans text-xs text-text-soft hover:text-navy underline transition-colors"
-                      >
+                      <span className="w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium flex-shrink-0 bg-navy text-sky">3</span>
+                      <h3 className="font-playfair text-lg text-navy">How would you like to book?</h3>
+                      <button onClick={handleBackToSeats} className="ml-auto font-sans text-xs text-text-soft hover:text-navy underline transition-colors">
                         Change seat
                       </button>
                     </div>
+
+                    <div className="space-y-3 mb-5">
+                      {/* Walk-in card */}
+                      <button
+                        onClick={() => setPaymentType('walk_in')}
+                        className={`w-full text-left p-5 rounded-2xl border-2 transition-all ${
+                          paymentType === 'walk_in' ? 'border-navy bg-sky-pale' : 'border-navy/10 bg-white hover:border-navy/30'
+                        }`}
+                      >
+                        <p className="font-playfair text-navy text-lg mb-1">Walk-In Session</p>
+                        <p className="font-sans text-sm text-text-mid">Pay the walk-in fee when you arrive.</p>
+                      </button>
+
+                      {/* Buddy pass card */}
+                      <div className={`p-5 rounded-2xl border-2 transition-all ${
+                        paymentType === 'buddy_pass' ? 'border-gold bg-gold-light/20' : 'border-navy/10 bg-white'
+                      }`}>
+                        <button
+                          onClick={() => setPaymentType('buddy_pass')}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-playfair text-navy text-lg">Buddy Pass</p>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold-light text-navy border border-gold/30">
+                              Free with member code
+                            </span>
+                          </div>
+                          <p className="font-sans text-sm text-text-mid">
+                            Have a code from a Four Winds member? Enter it here.
+                          </p>
+                        </button>
+
+                        {/* Code input — only visible when buddy pass is selected */}
+                        {paymentType === 'buddy_pass' && (
+                          <div className="mt-4">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={buddyCode}
+                                onChange={e => {
+                                  setBuddyCode(e.target.value.toUpperCase())
+                                  setCodeStatus(null)
+                                  setCodeValidation(null)
+                                  setCodeError(null)
+                                }}
+                                placeholder="e.g. FW-AB12CD34"
+                                className="flex-1 border border-navy/20 rounded-full px-4 py-2.5 font-sans text-sm text-navy uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-sky-mid"
+                                style={{ fontSize: '16px' }}
+                              />
+                              <button
+                                onClick={handleBuddyValidate}
+                                disabled={!buddyCode.trim() || codeStatus === 'checking'}
+                                className="px-4 py-2.5 rounded-full font-sans text-sm font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {codeStatus === 'checking' ? '...' : 'Validate'}
+                              </button>
+                            </div>
+
+                            {codeStatus === 'valid' && codeValidation && (
+                              <div className="mt-2 flex items-center gap-2">
+                                <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <p className="font-sans text-xs text-green-700">
+                                  Code accepted! {codeValidation.remaining} pass{codeValidation.remaining !== 1 ? 'es' : ''} remaining for {codeValidation.ownerName}'s account.
+                                </p>
+                              </div>
+                            )}
+                            {codeStatus === 'invalid' && codeError && (
+                              <p className="mt-2 font-sans text-xs text-red-600">{codeError}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setPaymentStage('details')}
+                      disabled={paymentType === 'buddy_pass' && codeStatus !== 'valid'}
+                      className="w-full py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
+                    >
+                      Continue →
+                    </button>
+                  </div>
+                </FadeUp>
+              )}
+
+              {/* Step 4 — details */}
+              {step === 3 && selectedSeat && paymentStage === 'details' && (
+                <FadeUp>
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="w-7 h-7 rounded-full flex items-center justify-center font-sans text-xs font-medium flex-shrink-0 bg-navy text-sky">4</span>
+                      <h3 className="font-playfair text-lg text-navy">Your Details</h3>
+                      <button
+                        onClick={() => setPaymentStage('select')}
+                        className="ml-auto font-sans text-xs text-text-soft hover:text-navy underline transition-colors"
+                      >
+                        Change payment
+                      </button>
+                    </div>
                     <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6 space-y-4">
-                      {bookingError && <Alert type="error">{bookingError}</Alert>}
+                      {(bookingError || redeemError) && (
+                        <Alert type="error">{bookingError ?? redeemError}</Alert>
+                      )}
                       <div>
                         <label className="block font-sans text-sm font-medium text-text-mid mb-1.5">Full Name *</label>
                         <input
@@ -578,14 +776,21 @@ export default function AboutPage() {
                         />
                       </div>
                       <button
-                        onClick={submitBooking}
-                        disabled={bookingLoading || !guestName.trim() || !guestPhone.trim()}
+                        onClick={paymentType === 'buddy_pass' ? handleBuddyRedeem : submitBooking}
+                        disabled={
+                          (paymentType === 'buddy_pass' ? redeeming : bookingLoading) ||
+                          !guestName.trim() || !guestPhone.trim()
+                        }
                         className="w-full py-4 rounded-full font-sans font-medium text-base bg-navy text-sky hover:bg-navy-deep transition-all duration-200 disabled:opacity-50 mt-2"
                       >
-                        {bookingLoading ? 'Confirming...' : 'Confirm Booking'}
+                        {(paymentType === 'buddy_pass' ? redeeming : bookingLoading)
+                          ? 'Confirming...'
+                          : 'Confirm Booking'}
                       </button>
                       <p className="font-sans text-xs text-text-soft text-center">
-                        Walk-in fee collected at the door · No account needed
+                        {paymentType === 'buddy_pass'
+                          ? 'Buddy pass · No payment needed'
+                          : 'Walk-in fee collected at the door · No account needed'}
                       </p>
                     </div>
                   </div>
