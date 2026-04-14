@@ -42,6 +42,7 @@ export default function ProfilePage() {
   const [nameChanged, setNameChanged] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState(null)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
 
   function handleNameChange(e) {
     setEditName(e.target.value)
@@ -129,6 +130,19 @@ export default function ProfilePage() {
           </div>
         </FadeUp>
 
+        {/* Phone */}
+        <FadeUp delay={75}>
+          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-3">Phone</label>
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-text-soft flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              <p className="font-sans text-text-mid text-sm">{profile?.phone ?? 'Not provided'}</p>
+            </div>
+          </div>
+        </FadeUp>
+
         {/* Membership */}
         <FadeUp delay={100}>
           <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
@@ -158,6 +172,13 @@ export default function ProfilePage() {
             )}
 
             <p className="font-cormorant italic text-text-mid text-base">Member since {memberSince}</p>
+
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="mt-3 font-sans text-xs text-sky-mid hover:text-navy transition-colors"
+            >
+              Change Plan →
+            </button>
           </div>
         </FadeUp>
 
@@ -365,6 +386,25 @@ export default function ProfilePage() {
         </FadeUp>
 
       </div>
+
+      {/* Change Plan modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm" onClick={() => setShowUpgradeModal(false)} />
+          <div className="relative bg-navy rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center">
+            <p className="font-playfair text-sky text-2xl mb-4">Coming Soon</p>
+            <p className="font-cormorant italic text-sky/70 text-lg leading-relaxed mb-6">
+              Membership upgrades will be available once payment is set up. Check back soon!
+            </p>
+            <button
+              onClick={() => setShowUpgradeModal(false)}
+              className="px-8 py-3 rounded-full font-sans text-sm font-medium bg-sky text-navy hover:bg-sky/85 transition-all"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </PageWrapper>
   )
 }
