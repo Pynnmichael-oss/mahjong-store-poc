@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import storefrontImg from '../assets/storefront.jpg'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useGuestBooking } from '../hooks/useGuestBooking.js'
@@ -449,34 +450,15 @@ export default function AboutPage() {
             </button>
           </FadeUp>
 
-          {/* Right — graphic placeholder */}
+          {/* Right — storefront photo */}
           <FadeUp delay={150}>
-            <div className="bg-navy rounded-2xl min-h-[420px] flex flex-col items-center justify-center p-10">
-              {/* Simple table layout SVG */}
-              <svg viewBox="0 0 200 160" className="w-48 h-36 mb-6" fill="none">
-                {/* 4 tables in 2x2 grid */}
-                {[
-                  { cx: 50, cy: 50 }, { cx: 150, cy: 50 },
-                  { cx: 50, cy: 115 }, { cx: 150, cy: 115 },
-                ].map(({ cx, cy }, i) => (
-                  <g key={i}>
-                    {/* Table surface */}
-                    <rect x={cx - 22} y={cy - 15} width={44} height={30} rx={5} fill="#c9a84c" fillOpacity={0.2} stroke="#c9a84c" strokeOpacity={0.5} strokeWidth={1} />
-                    {/* Seats around table */}
-                    {[
-                      [cx, cy - 28],        // top
-                      [cx, cy + 28],        // bottom
-                      [cx - 35, cy],        // left
-                      [cx + 35, cy],        // right
-                    ].map(([sx, sy], j) => (
-                      <circle key={j} cx={sx} cy={sy} r={6} fill="#b8d4f5" fillOpacity={0.4} stroke="#b8d4f5" strokeOpacity={0.6} strokeWidth={1} />
-                    ))}
-                  </g>
-                ))}
-              </svg>
-              <p className="font-cormorant italic text-sky/40 text-sm text-center">
-                [ Photo of the space coming soon ]
-              </p>
+            <div className="relative rounded-2xl overflow-hidden min-h-[500px] shadow-lg">
+              <img
+                src={storefrontImg}
+                alt="Four Winds Mahjong Club"
+                className="w-full h-full object-cover absolute inset-0"
+              />
+              <div className="absolute inset-0 bg-navy/30" />
             </div>
           </FadeUp>
         </div>
@@ -841,16 +823,15 @@ export default function AboutPage() {
             </div>
           </FadeUp>
 
-          {/* Right — map placeholder */}
+          {/* Right — storefront photo */}
           <FadeUp delay={150}>
-            <div className="bg-navy rounded-2xl min-h-[320px] flex flex-col items-center justify-center p-10">
-              {/* Location pin */}
-              <svg className="w-16 h-16 text-sky-mid mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <p className="font-playfair text-sky/60 text-lg mb-1">Tulsa, Oklahoma</p>
-              <p className="font-cormorant italic text-sky/40 text-sm">[ Map coming soon ]</p>
+            <div className="relative rounded-2xl overflow-hidden min-h-[400px] shadow-lg">
+              <img
+                src={storefrontImg}
+                alt="Four Winds — Coming soon to Tulsa, Oklahoma"
+                className="w-full h-full object-cover absolute inset-0"
+              />
+              <div className="absolute inset-0 bg-navy/20" />
             </div>
           </FadeUp>
         </div>
