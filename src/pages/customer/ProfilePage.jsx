@@ -485,6 +485,7 @@ export default function ProfilePage() {
                   {upgradeError && <Alert type="error">{upgradeError}</Alert>}
 
                   <SquarePaymentForm
+                    containerId="square-card-profile"
                     amountCents={plan?.amountCents ?? 0}
                     description={`Four Winds ${plan?.name} membership`}
                     userId={user?.id}

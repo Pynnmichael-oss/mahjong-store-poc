@@ -439,6 +439,7 @@ export default function SignupPage() {
 
             <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
               <SquarePaymentForm
+                containerId="square-card-signup"
                 amountCents={selected === 'dragon_pass' ? 14999 : 8999}
                 description={`Four Winds ${selectedPlan.name} — first month`}
                 membershipType={selected}

@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { chargeCard } from '../../services/paymentService.js'
 
-const APP_ID       = import.meta.env.VITE_SQUARE_APP_ID
-const LOCATION_ID  = import.meta.env.VITE_SQUARE_LOCATION_ID
+const APP_ID      = import.meta.env.VITE_SQUARE_APP_ID
+const LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID
 
 /**
  * SquarePaymentForm
  *
- * Renders a Square card field and handles the full tokenize → charge flow.
- *
  * Props:
+ *   containerId     {string}   Unique DOM id for the card field (required when multiple instances exist)
  *   amountCents     {number}   Amount in cents
  *   description     {string}   Payment description
  *   userId          {string}   Supabase user ID
@@ -21,6 +20,7 @@ const LOCATION_ID  = import.meta.env.VITE_SQUARE_LOCATION_ID
  *   disabled        {boolean}
  */
 export default function SquarePaymentForm({
+  containerId = 'square-card-container',
   amountCents,
   description,
   userId,
@@ -31,33 +31,44 @@ export default function SquarePaymentForm({
   submitLabel = 'Pay Now',
   disabled = false,
 }) {
-  const cardRef       = useRef(null)   // Square card instance
-  const containerId   = useRef(`sq-card-${Math.random().toString(36).slice(2)}`)
+  const cardRef               = useRef(null)
   const [ready, setReady]     = useState(false)
   const [loading, setLoading] = useState(false)
   const [localError, setLocalError] = useState(null)
 
   useEffect(() => {
+    console.log('[SquareForm] initializing with:', {
+      appId: APP_ID,
+      locationId: LOCATION_ID,
+      containerId,
+    })
+
     if (!APP_ID || !LOCATION_ID) {
-      setLocalError('Square is not configured. Add VITE_SQUARE_APP_ID and VITE_SQUARE_LOCATION_ID to .env')
+      const msg = 'Square is not configured. Add VITE_SQUARE_APP_ID and VITE_SQUARE_LOCATION_ID to .env'
+      console.error('[SquareForm]', msg)
+      setLocalError(msg)
       return
     }
 
+    let card = null
     let cancelled = false
 
     async function init() {
       try {
-        // Dynamic import so the SDK doesn't break SSR / tests
         const { payments } = await import('@square/web-sdk')
+        console.log('[SquareForm] SDK loaded, creating payments instance')
         const paymentsInstance = await payments(APP_ID, LOCATION_ID)
-        const card = await paymentsInstance.card()
-        await card.attach(`#${containerId.current}`)
+        console.log('[SquareForm] payments instance created, attaching card to #' + containerId)
+        card = await paymentsInstance.card()
+        await card.attach(`#${containerId}`)
+        console.log('[SquareForm] card attached successfully')
 
         if (!cancelled) {
           cardRef.current = card
           setReady(true)
         }
       } catch (err) {
+        console.error('[SquareForm] init error:', err)
         if (!cancelled) {
           const msg = err?.message ?? 'Failed to load payment form'
           setLocalError(msg)
@@ -70,10 +81,13 @@ export default function SquarePaymentForm({
 
     return () => {
       cancelled = true
-      cardRef.current?.destroy?.()
+      if (card) {
+        console.log('[SquareForm] destroying card on unmount')
+        card.destroy?.()
+      }
       cardRef.current = null
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [containerId]) // re-init if containerId changes
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -83,15 +97,27 @@ export default function SquarePaymentForm({
     setLocalError(null)
 
     try {
+      console.log('[SquareForm] tokenizing card...')
       const result = await cardRef.current.tokenize()
+      console.log('[SquareForm] tokenize result status:', result.status)
 
       if (result.status !== 'OK') {
         const msg = result.errors?.[0]?.message ?? 'Card validation failed'
+        console.error('[SquareForm] tokenize failed:', result.errors)
         setLocalError(msg)
         onError?.(msg)
         setLoading(false)
         return
       }
+
+      console.log('[SquareForm] token received, about to invoke square-payment')
+      console.log('[SquareForm] payload:', {
+        token: result.token?.substring(0, 20),
+        amountCents,
+        description,
+        userId,
+        membershipType,
+      })
 
       const { paymentId } = await chargeCard({
         sourceId: result.token,
@@ -102,8 +128,10 @@ export default function SquarePaymentForm({
         membershipType,
       })
 
+      console.log('[SquareForm] charge success, paymentId:', paymentId)
       onSuccess?.(paymentId)
     } catch (err) {
+      console.error('[SquareForm] handleSubmit error:', err)
       const msg = err?.message ?? 'Payment failed'
       setLocalError(msg)
       onError?.(msg)
@@ -116,14 +144,13 @@ export default function SquarePaymentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Card field container */}
+      {/* Card field container — Square injects its iframe here */}
       <div>
         <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-2">
           Card Details
         </label>
-        {/* Square injects its iframe into this div */}
         <div
-          id={containerId.current}
+          id={containerId}
           className="min-h-[44px] rounded-xl border border-navy/20 bg-white px-1 py-1"
         />
         {!ready && !localError && (

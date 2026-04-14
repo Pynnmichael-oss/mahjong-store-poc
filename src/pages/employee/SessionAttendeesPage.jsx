@@ -160,6 +160,7 @@ export default function SessionAttendeesPage() {
               </div>
             )}
             <SquarePaymentForm
+              containerId="square-card-checkin"
               amountCents={2000}
               description={paymentTarget.is_walk_in ? 'Four Winds walk-in fee' : 'Four Winds overage session fee'}
               userId={paymentTarget.user_id}
