@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import storefrontImg from '../assets/storefront.jpg'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import FloatingTiles from '../components/layout/FloatingTiles.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
@@ -98,18 +98,10 @@ function PublicNav() {
 // ─── Main AboutPage ───────────────────────────────────────────────────────────
 
 export default function AboutPage() {
-  const { user, profile, loading: authLoading } = useAuth()
-  const navigate = useNavigate()
+  const { loading: authLoading } = useAuth()
 
   const [sessions, setSessions]           = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
-
-  // Redirect logged-in users
-  useEffect(() => {
-    if (!authLoading && user) {
-      navigate(profile?.role === 'employee' ? '/employee' : '/dashboard', { replace: true })
-    }
-  }, [user, profile, authLoading, navigate])
 
   // Fetch upcoming sessions — next 7 days, public read
   useEffect(() => {

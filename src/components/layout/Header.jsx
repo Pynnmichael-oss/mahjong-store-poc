@@ -54,7 +54,7 @@ export default function Header() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link
-          to={isEmployee ? '/employee' : '/dashboard'}
+          to="/"
           className="flex items-center gap-2 flex-shrink-0"
         >
           <span className="font-playfair text-xl text-navy">

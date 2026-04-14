@@ -9,12 +9,6 @@ import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 import { getTableForSeat } from '../../lib/businessRules.js'
 
-const QUICK_LINKS = [
-  { to: '/events',  label: 'Events',     icon: '🎭' },
-  { to: '/my-qr',  label: 'My QR Code', icon: '📱' },
-  { to: '/history', label: 'History',    icon: '📋' },
-  { to: '/reserve', label: 'Profile',    icon: '👤' },
-]
 
 export default function DashboardPage() {
   const { user, profile } = useAuth()
@@ -90,6 +84,25 @@ export default function DashboardPage() {
                 </p>
                 <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">Member since</p>
               </div>
+
+              <Link to="/my-qr">
+                <div className="bg-white/8 border border-sky/20 rounded-2xl px-5 py-4 text-center min-w-[110px] hover:bg-white/15 transition-all cursor-pointer">
+                  <svg viewBox="0 0 24 24" className="w-8 h-8 text-sky mx-auto">
+                    <rect x="3" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
+                    <rect x="13" y="3" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
+                    <rect x="3" y="13" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="2"/>
+                    <rect x="5" y="5" width="4" height="4" fill="currentColor"/>
+                    <rect x="15" y="5" width="4" height="4" fill="currentColor"/>
+                    <rect x="5" y="15" width="4" height="4" fill="currentColor"/>
+                    <rect x="13" y="13" width="2" height="2" fill="currentColor"/>
+                    <rect x="17" y="13" width="2" height="2" fill="currentColor"/>
+                    <rect x="13" y="17" width="2" height="2" fill="currentColor"/>
+                    <rect x="17" y="17" width="2" height="2" fill="currentColor"/>
+                    <rect x="15" y="15" width="2" height="2" fill="currentColor"/>
+                  </svg>
+                  <p className="text-sky/50 text-xs tracking-wider uppercase font-sans mt-1">My QR Code</p>
+                </div>
+              </Link>
             </div>
           </FadeUp>
         </div>
@@ -140,26 +153,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Quick links ── */}
-      <div className="bg-warm-white py-8 px-4 sm:px-8">
-        <div className="max-w-6xl mx-auto">
-          <FadeUp>
-            <p className="font-sans text-xs uppercase tracking-widest text-text-soft mb-4">Quick Links</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {QUICK_LINKS.map(({ to, label, icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className="flex items-center gap-2 bg-white border border-navy/8 rounded-xl px-4 py-3 font-sans text-sm text-text-mid hover:shadow-sm hover:text-navy transition-all duration-150"
-                >
-                  <span className="text-base">{icon}</span>
-                  {label}
-                </Link>
-              ))}
-            </div>
-          </FadeUp>
-        </div>
-      </div>
     </PageWrapper>
   )
 }
