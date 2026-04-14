@@ -6,11 +6,14 @@ export function useSessions() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
+  function refetch() {
+    setLoading(true)
     fetchUpcomingSessions().then(setSessions).catch(setError).finally(() => setLoading(false))
-  }, [])
+  }
 
-  return { sessions, loading, error }
+  useEffect(() => { refetch() }, [])
+
+  return { sessions, loading, error, refetch }
 }
 
 export function useTodaysSessions() {

@@ -20,13 +20,14 @@ export async function cancelSession(sessionId) {
   if (error) throw error
 }
 
-// Calls the create_session_with_seats(DATE, TIME, TIME) Postgres function.
+// Calls the create_session_with_seats Postgres function.
+// Accepts bare time strings ("10:00:00") and combines with date for TIMESTAMPTZ params.
 // Returns the new session UUID, or null if a session for that date+time already exists.
 export async function createSessionWithSeats(date, startTime, endTime) {
   const { data, error } = await supabase.rpc('create_session_with_seats', {
     p_date:       date,
-    p_start_time: startTime,
-    p_end_time:   endTime,
+    p_start_time: `${date}T${startTime}`,
+    p_end_time:   `${date}T${endTime}`,
   })
   if (error) throw error
   return data
@@ -36,7 +37,7 @@ export async function fetchUpcomingSessions() {
   const today = new Date().toISOString().split('T')[0]
   const { data, error } = await supabase
     .from('sessions')
-    .select('*')
+    .select('*, seats(id, status)')
     .gte('date', today)
     .eq('status', 'open')
     .order('date', { ascending: true })

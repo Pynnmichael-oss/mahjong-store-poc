@@ -6,8 +6,9 @@ export default function SessionCard({ session, showReserveButton = false }) {
   const isToday = session.date === today
 
   const totalSeats = session.total_seats ?? 32
-  const reservedCount = session.reserved_count ?? 0
-  const remaining = totalSeats - reservedCount
+  const remaining = session.seats
+    ? session.seats.filter(s => s.status === 'available').length
+    : totalSeats - (session.reserved_count ?? 0)
   const isFull = remaining <= 0
   const isAlmostFull = remaining > 0 && remaining <= 6
 
