@@ -15,7 +15,7 @@ export default function ProfilePage() {
   const { user, profile } = useAuth()
   const { reservations } = useUserReservations(user?.id)
   const { checkedInCount, isOverLimit } = useWeeklyLimit(reservations, profile?.membership_type)
-  const { pass: buddyPass, loading: passLoading } = useBuddyPass()
+  const { pass: buddyPass, loading: passLoading, error: passError } = useBuddyPass()
   const [copied, setCopied] = useState(false)
 
   function copyCode() {
@@ -60,6 +60,8 @@ export default function ProfilePage() {
   const membershipType = profile?.membership_type ?? 'walk_in'
   const config = getMembershipConfig(membershipType)
   const { monthlyCount } = useMonthlySessionCount()
+  console.log('[Profile] membership:', profile?.membership_type, '→ resolved:', membershipType)
+  console.log('[Profile] buddyEligible:', isBuddyPassEligible(membershipType), '| buddyPass:', buddyPass, '| passLoading:', passLoading)
   const isSubscriber = membershipType === 'subscriber'
   const isDragonPass = membershipType === 'dragon_pass'
   const isFlowerPass = membershipType === 'flower_pass'
@@ -218,6 +220,8 @@ export default function ProfilePage() {
             <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
               {passLoading ? (
                 <div className="flex justify-center py-4"><LoadingSpinner /></div>
+              ) : passError ? (
+                <Alert type="error">{passError}</Alert>
               ) : buddyPass ? (() => {
                 const used      = buddyPass.used_count ?? 0
                 const max       = buddyPass.max_uses ?? 2

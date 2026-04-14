@@ -207,7 +207,6 @@ export default function MemberDetailModal({ member: initialMember, open, onClose
             <option value="flower_pass">Flower Pass — $89.99/mo</option>
             <option value="four_winds_member">Four Winds Member — Free</option>
             <option value="walk_in">Walk-in — Per session</option>
-            <option value="subscriber">Subscriber (legacy)</option>
           </select>
         </div>
 
