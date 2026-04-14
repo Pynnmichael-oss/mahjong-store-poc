@@ -17,7 +17,10 @@ export async function chargeCard({ sourceId, amountCents, description, userId, r
     body: { sourceId, amountCents, description, userId, reservationId, membershipType },
   })
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    console.error('[paymentService] invoke error:', error)
+    throw new Error(error.message ?? 'Payment failed')
+  }
   if (!data?.success) throw new Error(data?.error ?? 'Payment failed')
 
   return { paymentId: data.paymentId, squarePaymentId: data.squarePaymentId }

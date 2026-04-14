@@ -1,11 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
 // Required Supabase SQL before deploying:
 //
 // CREATE TABLE IF NOT EXISTS payments (
@@ -23,10 +18,30 @@ const corsHeaders = {
 // ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 // CREATE POLICY "employees can view payments" ON payments FOR SELECT USING (true);
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, ' +
+    'x-supabase-client, accept, accept-language',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
+}
+
 serve(async (req) => {
-  // CORS preflight
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    })
+  }
+
+  // Only allow POST
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Method not allowed' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   try {
@@ -43,9 +58,9 @@ serve(async (req) => {
       throw new Error('sourceId and amountCents are required')
     }
 
-    const accessToken  = Deno.env.get('SQUARE_ACCESS_TOKEN')
-    const locationId   = Deno.env.get('SQUARE_LOCATION_ID')
-    const squareBase   = Deno.env.get('SQUARE_ENV') === 'production'
+    const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN')
+    const locationId  = Deno.env.get('SQUARE_LOCATION_ID')
+    const squareBase  = Deno.env.get('SQUARE_ENV') === 'production'
       ? 'https://connect.squareup.com'
       : 'https://connect.squareupsandbox.com'
 
@@ -53,7 +68,6 @@ serve(async (req) => {
       throw new Error('Missing SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID env var')
     }
 
-    // Idempotency key — unique per request
     const idempotencyKey = crypto.randomUUID()
 
     console.log(`[square-payment] charging ${amountCents} cents, sourceId: ${sourceId.slice(0, 12)}...`)
