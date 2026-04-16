@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import PageWrapper from '../../components/layout/PageWrapper.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
@@ -15,6 +15,7 @@ import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { getMonthlyCheckInCountsBatch } from '../../services/attendanceService.js'
 
 export default function SessionAttendeesPage() {
   const { id: sessionId } = useParams()
@@ -29,8 +30,19 @@ export default function SessionAttendeesPage() {
 
   const [scanMessage, setScanMessage] = useState(null)
   const [showWalkIn, setShowWalkIn] = useState(false)
-  const [paymentTarget, setPaymentTarget] = useState(null)   // reservation object
+  const [paymentTarget, setPaymentTarget] = useState(null)
   const [paymentError, setPaymentError] = useState(null)
+  const [monthlyCountsMap, setMonthlyCountsMap] = useState({})
+  const [flowerLimitTarget, setFlowerLimitTarget] = useState(null) // reservation needing limit warning
+
+  // Batch-fetch monthly counts for all flower_pass members in this session
+  useEffect(() => {
+    const flowerUserIds = reservations
+      .filter(r => r.profiles?.membership_type === 'flower_pass' && r.user_id)
+      .map(r => r.user_id)
+    if (!flowerUserIds.length) return
+    getMonthlyCheckInCountsBatch(flowerUserIds).then(setMonthlyCountsMap)
+  }, [reservations])
 
   function onScan(userId) {
     setScanMessage(null)
@@ -48,8 +60,38 @@ export default function SessionAttendeesPage() {
   function onPaymentSuccess() {
     handleCheckin(paymentTarget.id, paymentTarget.seat_id, () => {
       setScanMessage('Payment collected — checked in!')
+      // Refresh monthly counts after check-in
+      const flowerUserIds = reservations
+        .filter(r => r.profiles?.membership_type === 'flower_pass' && r.user_id)
+        .map(r => r.user_id)
+      if (flowerUserIds.length) getMonthlyCheckInCountsBatch(flowerUserIds).then(setMonthlyCountsMap)
       refresh()
       closePaymentModal()
+    })
+  }
+
+  // Called by the regular "Check In" button — intercepts flower_pass limit
+  function handleCheckinClick(reservation) {
+    const isFlower = reservation.profiles?.membership_type === 'flower_pass'
+    const count = monthlyCountsMap[reservation.user_id] ?? 0
+    if (isFlower && count >= 8) {
+      setFlowerLimitTarget(reservation)
+    } else {
+      doCheckin(reservation)
+    }
+  }
+
+  function doCheckin(reservation) {
+    handleCheckin(reservation.id, reservation.seat_id, () => {
+      setScanMessage('Checked in successfully')
+      // Update monthly count locally
+      if (reservation.profiles?.membership_type === 'flower_pass') {
+        setMonthlyCountsMap(prev => ({
+          ...prev,
+          [reservation.user_id]: (prev[reservation.user_id] ?? 0) + 1,
+        }))
+      }
+      refresh()
     })
   }
 
@@ -120,6 +162,8 @@ export default function SessionAttendeesPage() {
               onNoShow={id => handleNoShow(id, () => refresh())}
               onOverride={id => handleOverride(id, user?.id, () => refresh())}
               onPayCheckin={r => { setPaymentTarget(r); setPaymentError(null) }}
+              onCheckin={handleCheckinClick}
+              monthlyCountsMap={monthlyCountsMap}
               disabled={processing}
             />
           )}
@@ -170,6 +214,42 @@ export default function SessionAttendeesPage() {
               submitLabel="Collect Payment"
               disabled={processing}
             />
+          </div>
+        )}
+      </Modal>
+
+      {/* Flower Pass limit confirmation modal */}
+      <Modal
+        open={!!flowerLimitTarget}
+        onClose={() => setFlowerLimitTarget(null)}
+        title="Session Limit Reached"
+      >
+        {flowerLimitTarget && (
+          <div className="space-y-5">
+            <div className="bg-gold-light border border-gold/30 rounded-xl px-4 py-4">
+              <p className="font-cormorant italic text-navy text-base leading-relaxed">
+                <strong>{flowerLimitTarget.profiles?.full_name ?? 'This member'}</strong> has used all 8 Flower Pass sessions this month. Walk-in rate applies.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  const r = flowerLimitTarget
+                  setFlowerLimitTarget(null)
+                  setPaymentTarget(r)
+                  setPaymentError(null)
+                }}
+                className="w-full py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all"
+              >
+                Check In + Charge Walk-In Rate
+              </button>
+              <button
+                onClick={() => setFlowerLimitTarget(null)}
+                className="w-full py-3 rounded-full font-sans font-medium text-sm border-[1.5px] border-navy/20 text-navy hover:bg-sky-pale transition-all"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
       </Modal>

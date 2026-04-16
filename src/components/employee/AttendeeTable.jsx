@@ -1,7 +1,7 @@
 import AttendeeRow from './AttendeeRow.jsx'
 import EmptyState from '../ui/EmptyState.jsx'
 
-export default function AttendeeTable({ reservations, onNoShow, onOverride, onPayCheckin, disabled }) {
+export default function AttendeeTable({ reservations, onNoShow, onOverride, onPayCheckin, onCheckin, monthlyCountsMap = {}, disabled }) {
   if (!reservations.length) {
     return <EmptyState message="No reservations for this session yet." />
   }
@@ -25,6 +25,8 @@ export default function AttendeeTable({ reservations, onNoShow, onOverride, onPa
               onNoShow={onNoShow}
               onOverride={onOverride}
               onPayCheckin={onPayCheckin}
+              onCheckin={onCheckin}
+              monthlyCount={monthlyCountsMap[r.user_id] ?? null}
               disabled={disabled}
             />
           ))}

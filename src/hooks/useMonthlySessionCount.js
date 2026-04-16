@@ -21,15 +21,16 @@ export function useMonthlySessionCount() {
     setLoading(true)
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
 
     const { count } = await supabase
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', profile.id)
       .eq('status', 'checked_in')
+      .eq('membership_type_at_booking', 'flower_pass')
       .gte('checked_in_at', monthStart)
-      .lte('checked_in_at', monthEnd)
+      .lt('checked_in_at', monthEnd)
 
     setMonthlyCount(count ?? 0)
     setLoading(false)

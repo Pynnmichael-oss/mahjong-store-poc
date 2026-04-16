@@ -1,7 +1,7 @@
 import Badge from '../ui/Badge.jsx'
 import { getTableForSeat, getMembershipBadgeClasses, getMembershipLabel } from '../../lib/businessRules.js'
 
-export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCheckin, disabled, index }) {
+export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCheckin, onCheckin, monthlyCount, disabled, index }) {
   const profile  = reservation.profiles
   const seat     = reservation.seats
   const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
@@ -9,13 +9,16 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
   const isGuest        = reservation.is_guest === true
   const isBuddyPass    = reservation.is_buddy_pass === true
   const isDragonPass   = !isGuest && profile?.membership_type === 'dragon_pass'
+  const isFlowerPass   = !isGuest && profile?.membership_type === 'flower_pass'
   const memberTier     = !isGuest ? profile?.membership_type : null
   const name           = isGuest ? reservation.guest_name : profile?.full_name
+  const sessionsLeft   = isFlowerPass && monthlyCount != null ? Math.max(0, 8 - monthlyCount) : null
 
   return (
     <tr className={`border-b border-navy/5 last:border-0 ${isAlt ? 'bg-sky-pale' : 'bg-white'}`}>
       {/* Name */}
       <td className="py-4 px-4 min-h-[56px]">
+        <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-sans font-medium text-navy text-sm">
             {isDragonPass && <span className="mr-1">⭐</span>}{name ?? '—'}
@@ -33,6 +36,12 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
               {getMembershipLabel(memberTier)}
             </span>
           )}
+        </div>
+        {sessionsLeft !== null && reservation.status !== 'checked_in' && (
+          <span className={`font-sans text-xs ${sessionsLeft === 0 ? 'text-gold font-medium' : 'text-text-soft'}`}>
+            {sessionsLeft === 0 ? 'Monthly limit reached' : `${sessionsLeft} session${sessionsLeft !== 1 ? 's' : ''} remaining this month`}
+          </span>
+        )}
         </div>
       </td>
 
@@ -88,7 +97,7 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
               </button>
             ) : (
               <button
-                onClick={() => onNoShow?.(reservation.id, 'checkin')}
+                onClick={() => onCheckin?.(reservation)}
                 disabled={disabled}
                 className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
               >

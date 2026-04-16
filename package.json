@@ -11,6 +11,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@square/web-sdk": "^2.1.0",
     "@supabase/supabase-js": "^2.45.0",
     "jsqr": "^1.4.0",
     "qrcode.react": "^4.0.1",
