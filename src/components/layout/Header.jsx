@@ -17,7 +17,7 @@ export default function Header() {
 
   async function handleSignOut() {
     await signOut()
-    navigate('/login')
+    navigate('/')
   }
 
   const customerLinks = [

@@ -23,9 +23,8 @@ export default function EventsPage() {
 
   async function handleRsvp(event) {
     setActionError(null)
-    const confirmedCount = (event.event_rsvps || []).filter(r => r.status === 'confirmed').length
     try {
-      const newRsvp = await rsvpToEvent(event.id, user.id, confirmedCount, event.capacity)
+      const newRsvp = await rsvpToEvent(event.id, user.id)
       setUserRsvps(prev => [...prev, newRsvp])
       refresh()
     } catch (err) {

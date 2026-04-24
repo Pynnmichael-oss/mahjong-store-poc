@@ -2,6 +2,19 @@ import { supabase } from './supabase.js'
 import { updateSeatStatus } from './seatService.js'
 
 export async function createReservation(payload) {
+  // Prevent double-booking before attempting the insert
+  if (payload.user_id && payload.session_id) {
+    const { count } = await supabase
+      .from('reservations')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', payload.user_id)
+      .eq('session_id', payload.session_id)
+      .in('status', ['confirmed', 'reserved'])
+    if (count > 0) {
+      throw new Error('You already have a reservation for this session.')
+    }
+  }
+
   const { data, error } = await supabase
     .from('reservations')
     .insert(payload)

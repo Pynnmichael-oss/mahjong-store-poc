@@ -18,7 +18,7 @@ export function getTableForSeat(seatNumber) {
 export function countCheckedInPlaysThisWeek(reservations) {
   const { weekStart, weekEnd } = getWeekBoundaries()
   return reservations.filter(r => {
-    if (r.status !== 'checked_in') return false
+    if (!['confirmed', 'reserved', 'walk_in', 'checked_in'].includes(r.status)) return false
     const date = r.sessions?.date
       ? new Date(r.sessions.date + 'T00:00:00')
       : new Date(r.reserved_at)

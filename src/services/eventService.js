@@ -42,8 +42,23 @@ export async function updateEventStatus(eventId, status) {
   return data
 }
 
-export async function rsvpToEvent(eventId, userId, confirmedCount, capacity) {
-  const status = confirmedCount < capacity ? 'confirmed' : 'waitlisted'
+export async function rsvpToEvent(eventId, userId) {
+  // Fresh counts from DB — prevents overbooking when multiple users RSVP simultaneously
+  const [{ count }, { data: eventData }] = await Promise.all([
+    supabase
+      .from('event_rsvps')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed'),
+    supabase
+      .from('events')
+      .select('capacity')
+      .eq('id', eventId)
+      .single(),
+  ])
+
+  const status = (count ?? 0) < (eventData?.capacity ?? 0) ? 'confirmed' : 'waitlisted'
+
   const { data, error } = await supabase
     .from('event_rsvps')
     .insert({ event_id: eventId, user_id: userId, status })

@@ -19,9 +19,22 @@ export default function WalkInForm({ sessionId, seats, onSubmit, onCancel, disab
       .then(({ data }) => setUsers(data || []))
   }, [])
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!selectedUser || !selectedSeat) { setError('Please select a member and a seat.'); return }
+
+    const { count } = await supabase
+      .from('reservations')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', selectedUser)
+      .eq('session_id', sessionId)
+      .in('status', ['confirmed', 'walk_in', 'checked_in'])
+    if (count > 0) {
+      const memberName = users.find(u => u.id === selectedUser)?.full_name ?? 'This member'
+      setError(`A walk-in for ${memberName} already exists for this session. Check the attendee list or use a different member.`)
+      return
+    }
+
     const user = users.find(u => u.id === selectedUser)
     onSubmit({ userId: selectedUser, seatId: selectedSeat.id, membershipType: user?.membership_type ?? 'walk_in' })
   }
