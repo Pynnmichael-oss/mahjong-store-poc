@@ -8,6 +8,17 @@ export async function createGuestReservation(
   const { data: sessionData } = await supabase.auth.getSession()
   console.log('[guestService] auth session:', JSON.stringify(sessionData, null, 2))
 
+  // Prevent duplicate guest walk-ins for the same name in the same session
+  const { count: dupCount } = await supabase
+    .from('reservations')
+    .select('*', { count: 'exact', head: true })
+    .eq('session_id', sessionId)
+    .eq('is_guest', true)
+    .ilike('guest_name', guestName.trim())
+  if (dupCount > 0) {
+    throw new Error(`A walk-in named "${guestName}" already exists for this session.`)
+  }
+
   const { data, error } = await supabase.rpc('create_guest_reservation', {
     p_session_id:  sessionId,
     p_seat_id:     seatId,

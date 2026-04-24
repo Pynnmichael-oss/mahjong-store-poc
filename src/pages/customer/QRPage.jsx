@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import PageWrapper from '../../components/layout/PageWrapper.jsx'
 import QRCodeDisplay from '../../components/checkin/QRCodeDisplay.jsx'
+import EmptyState from '../../components/ui/EmptyState.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { MEMBERSHIP_TIERS, getTableForSeat } from '../../lib/businessRules.js'
 import { supabase } from '../../services/supabase.js'
@@ -59,18 +60,18 @@ export default function QRPage() {
         </div>
 
         {nextReservation ? (
-          <div className="w-full bg-cream rounded-2xl border border-navy/10 px-6 py-5 text-center space-y-1">
-            <p className="font-sans text-[10px] uppercase tracking-[3px] text-sky-mid mb-3">Your Next Session</p>
+          <div className="w-full bg-white rounded-2xl border border-navy/8 shadow-sm px-6 py-5 text-center space-y-1">
+            <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky-mid mb-3">Your Next Session</p>
             <p className="font-playfair text-navy text-xl">
               {formatSessionDate(nextReservation.sessions?.date)}
             </p>
-            <p className="font-sans text-sm text-text-mid">
+            <p className="font-cormorant italic text-text-mid text-base">
               {formatTime(nextReservation.sessions?.start_time)}
             </p>
             {nextReservation.seats && (() => {
               const { tableName } = getTableForSeat(nextReservation.seats.seat_number)
               return (
-                <p className="font-sans text-sm text-text-mid">
+                <p className="font-playfair text-navy text-base">
                   {tableName} · Seat {nextReservation.seats.seat_number}
                 </p>
               )
@@ -78,9 +79,10 @@ export default function QRPage() {
             <p className="font-cormorant italic text-text-soft text-sm pt-2">Show this screen when you arrive</p>
           </div>
         ) : (
-          <p className="font-cormorant italic text-text-soft text-base text-center">
-            No upcoming reservations. Book a session to see your details here.
-          </p>
+          <EmptyState
+            message="No upcoming reservations"
+            description="Book a session to see your details here."
+          />
         )}
       </div>
     </PageWrapper>

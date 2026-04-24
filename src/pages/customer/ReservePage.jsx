@@ -11,8 +11,9 @@ import OverageFlagBanner from '../../components/reservations/OverageFlagBanner.j
 import Alert from '../../components/ui/Alert.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
+import Modal from '../../components/ui/Modal.jsx'
 import { createReservation } from '../../services/reservationService.js'
-import { buildReservationPayload, getTableForSeat, hasSaturdayWarning, shouldWarnMonthlyLimit } from '../../lib/businessRules.js'
+import { buildReservationPayload, getTableForSeat, hasSaturdayWarning, shouldWarnMonthlyLimit, getMembershipConfig } from '../../lib/businessRules.js'
 import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 
@@ -183,32 +184,26 @@ export default function ReservePage() {
         </div>
       )}
       {/* Overage confirmation modal */}
-      {showOverageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm" onClick={() => setShowOverageModal(false)} />
-          <div className="relative bg-warm-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <h2 className="font-playfair text-navy text-xl mb-3">Weekly Limit Reached</h2>
-            <p className="font-cormorant italic text-text-mid text-base leading-relaxed mb-5">
-              You've reached your 3 sessions this week. You can still reserve this seat, but a walk-in fee will apply when you arrive.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowOverageModal(false)}
-                className="flex-1 py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy/20 text-navy hover:bg-sky-pale transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { setShowOverageModal(false); doReserve() }}
-                disabled={submitting}
-                className="flex-1 py-3 rounded-full font-sans text-sm font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
-              >
-                Reserve Anyway
-              </button>
-            </div>
-          </div>
+      <Modal open={showOverageModal} onClose={() => setShowOverageModal(false)} title="Weekly limit reached">
+        <p className="font-cormorant italic text-text-mid text-base leading-relaxed mb-5">
+          You've used all {getMembershipConfig(profile?.membership_type ?? 'walk_in').weeklyLimit} sessions for this week. You can still reserve this seat — a walk-in fee will apply when you arrive.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowOverageModal(false)}
+            className="flex-1 py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy text-navy hover:bg-sky-pale transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { setShowOverageModal(false); doReserve() }}
+            disabled={submitting}
+            className="flex-1 py-3 rounded-full font-sans text-sm font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
+          >
+            Reserve Anyway
+          </button>
         </div>
-      )}
+      </Modal>
     </PageWrapper>
   )
 }

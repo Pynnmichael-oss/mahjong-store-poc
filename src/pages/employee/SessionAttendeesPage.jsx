@@ -558,6 +558,11 @@ export default function SessionAttendeesPage() {
                             {getMembershipLabel(memberTier)}
                           </span>
                         )}
+                        {r.is_flagged_overage && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-[10px] font-medium bg-gold-light border border-gold text-navy">
+                            Fee due
+                          </span>
+                        )}
                       </div>
                       {sessionsLeft !== null && (
                         <p className={`font-sans text-xs ${sessionsLeft === 0 ? 'text-gold font-medium' : 'text-text-soft'}`}>

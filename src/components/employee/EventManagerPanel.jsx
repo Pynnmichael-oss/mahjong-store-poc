@@ -72,16 +72,46 @@ export default function EventManagerPanel({ event, onUpdate }) {
           <LoadingSpinner />
         ) : rsvps.length === 0 ? (
           <p className="font-cormorant italic text-text-mid text-base text-center py-6">No RSVPs yet.</p>
-        ) : (
-          <div className="divide-y divide-navy/5">
-            {rsvps.map(r => (
-              <div key={r.id} className="flex items-center justify-between py-3">
-                <span className="font-sans font-medium text-navy text-sm">{r.profiles?.full_name ?? '—'}</span>
-                <Badge status={r.status} />
+        ) : (() => {
+          const confirmed  = rsvps.filter(r => r.status === 'confirmed')
+          const waitlisted = rsvps.filter(r => r.status === 'waitlisted')
+          return (
+            <div className="space-y-5">
+              <div>
+                <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky-mid mb-2">
+                  Confirmed ({confirmed.length})
+                </p>
+                {confirmed.length === 0 ? (
+                  <p className="font-cormorant italic text-text-soft text-sm">None yet.</p>
+                ) : (
+                  <div className="divide-y divide-navy/5 bg-white rounded-xl border border-navy/8">
+                    {confirmed.map(r => (
+                      <div key={r.id} className="flex items-center justify-between px-4 py-3">
+                        <span className="font-sans font-medium text-navy text-sm">{r.profiles?.full_name ?? '—'}</span>
+                        <Badge status={r.status} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+              {waitlisted.length > 0 && (
+                <div>
+                  <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky-mid mb-2">
+                    Waitlist ({waitlisted.length})
+                  </p>
+                  <div className="divide-y divide-navy/5 bg-white rounded-xl border border-navy/8">
+                    {waitlisted.map(r => (
+                      <div key={r.id} className="flex items-center justify-between px-4 py-3">
+                        <span className="font-sans font-medium text-navy text-sm">{r.profiles?.full_name ?? '—'}</span>
+                        <Badge status={r.status} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </Modal>
     </>
   )
