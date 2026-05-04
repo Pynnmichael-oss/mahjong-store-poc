@@ -1,7 +1,7 @@
 import TableDisplay from './TableDisplay.jsx'
 import { TABLE_NAMES } from '../../lib/businessRules.js'
 
-export default function SeatMap({ seats, selectedSeat, onSelect }) {
+export default function SeatMap({ seats, selectedSeats = [], onSelect, existingSeatIds = [] }) {
   const tables = TABLE_NAMES.map((name, tableIndex) => ({
     name,
     seats: seats.filter(s => {
@@ -11,22 +11,30 @@ export default function SeatMap({ seats, selectedSeat, onSelect }) {
     }),
   }))
 
+  const legendItems = [
+    { cls: 'bg-warm-white border-2 border-navy', label: 'Available' },
+    { cls: 'bg-navy',                             label: 'Selected'  },
+    ...(existingSeatIds.length > 0
+      ? [{ cls: 'bg-gold-light border-2 border-gold', label: 'Your seat' }]
+      : []),
+    { cls: 'bg-red-100 border-2 border-red-200',  label: 'Taken'     },
+    { cls: 'bg-gray-200',                          label: 'Occupied'  },
+  ]
+
   return (
     <div className="w-full">
       {/* Legend */}
-      <div className="flex gap-5 justify-center mb-6">
-        {[
-          { cls: 'bg-warm-white border-2 border-navy', label: 'Available' },
-          { cls: 'bg-navy',                             label: 'Selected'  },
-          { cls: 'bg-red-100 border-2 border-red-200',  label: 'Taken'     },
-          { cls: 'bg-gray-200',                          label: 'Occupied'  },
-        ].map(({ cls, label }) => (
+      <div className="flex gap-5 justify-center mb-3 flex-wrap">
+        {legendItems.map(({ cls, label }) => (
           <span key={label} className="flex items-center gap-1.5 font-sans text-xs text-text-soft">
             <span className={`w-3 h-3 rounded-full inline-block flex-shrink-0 ${cls}`} />
             {label}
           </span>
         ))}
       </div>
+      <p className="font-sans text-[11px] text-text-soft text-center mb-6">
+        Up to 4 seats per booking
+      </p>
 
       {/* 4-column grid on md+, 2-column on mobile */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 justify-items-center">
@@ -35,8 +43,9 @@ export default function SeatMap({ seats, selectedSeat, onSelect }) {
             key={t.name}
             tableName={t.name}
             seats={t.seats}
-            selectedSeat={selectedSeat}
+            selectedSeats={selectedSeats}
             onSelect={onSelect}
+            existingSeatIds={existingSeatIds}
           />
         ))}
       </div>

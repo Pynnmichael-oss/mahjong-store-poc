@@ -1,7 +1,9 @@
 import Badge from '../ui/Badge.jsx'
 import { getTableForSeat, getMembershipBadgeClasses, getMembershipLabel } from '../../lib/businessRules.js'
 
-export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCheckin, onCheckin, monthlyCount, disabled, index }) {
+import { getWeeklyLimit } from '../../lib/businessRules.js'
+
+export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCheckin, onCheckin, weeklyCount, disabled, index }) {
   const profile  = reservation.profiles
   const seat     = reservation.seats
   const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
@@ -9,10 +11,11 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
   const isGuest        = reservation.is_guest === true
   const isBuddyPass    = reservation.is_buddy_pass === true
   const isDragonPass   = !isGuest && profile?.membership_type === 'dragon_pass'
-  const isFlowerPass   = !isGuest && profile?.membership_type === 'flower_pass'
   const memberTier     = !isGuest ? profile?.membership_type : null
   const name           = isGuest ? reservation.guest_name : profile?.full_name
-  const sessionsLeft   = isFlowerPass && monthlyCount != null ? Math.max(0, 8 - monthlyCount) : null
+  const weeklyLimit    = memberTier ? getWeeklyLimit(memberTier) : null
+  const sessionsLeft   = weeklyLimit !== null && weeklyCount != null
+    ? Math.max(0, weeklyLimit - weeklyCount) : null
 
   return (
     <tr className={`border-b border-navy/5 last:border-0 ${isAlt ? 'bg-sky-pale' : 'bg-white'}`}>
@@ -31,7 +34,7 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
             <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold-light text-navy border border-gold/30">
               Guest
             </span>
-          ) : memberTier && memberTier !== 'walk_in' && memberTier !== 'subscriber' && (
+          ) : memberTier && (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(memberTier)}`}>
               {getMembershipLabel(memberTier)}
             </span>
@@ -39,7 +42,7 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
         </div>
         {sessionsLeft !== null && reservation.status !== 'checked_in' && (
           <span className={`font-sans text-xs ${sessionsLeft === 0 ? 'text-gold font-medium' : 'text-text-soft'}`}>
-            {sessionsLeft === 0 ? 'Monthly limit reached' : `${sessionsLeft} session${sessionsLeft !== 1 ? 's' : ''} remaining this month`}
+            {sessionsLeft === 0 ? 'Weekly limit reached' : `${sessionsLeft} session${sessionsLeft !== 1 ? 's' : ''} left this week`}
           </span>
         )}
         </div>

@@ -1,40 +1,42 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { hasMonthlyLimit } from '../lib/businessRules.js'
+import { hasWeeklyLimit } from '../lib/businessRules.js'
+import { getWeekBoundaries } from '../lib/dateUtils.js'
 import { supabase } from '../services/supabase.js'
 
-export function useMonthlySessionCount() {
+export function useWeeklySessionCount() {
   const { profile } = useAuth()
-  const [monthlyCount, setMonthlyCount] = useState(0)
+  const [weeklyCount, setWeeklyCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!profile) return
-    if (!hasMonthlyLimit(profile.membership_type)) {
+    if (!hasWeeklyLimit(profile.membership_type)) {
       setLoading(false)
       return
     }
-    fetchMonthlyCount()
+    fetchWeeklyCount()
   }, [profile?.id, profile?.membership_type])
 
-  async function fetchMonthlyCount() {
+  async function fetchWeeklyCount() {
     setLoading(true)
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+    const { weekStart, weekEnd } = getWeekBoundaries()
 
     const { count } = await supabase
       .from('reservations')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', profile.id)
-      .eq('status', 'checked_in')
-      .eq('membership_type_at_booking', 'flower_pass')
-      .gte('checked_in_at', monthStart)
-      .lt('checked_in_at', monthEnd)
+      .eq('is_primary_seat', true)
+      .in('status', ['confirmed', 'walk_in', 'checked_in'])
+      .gte('created_at', weekStart.toISOString())
+      .lte('created_at', weekEnd.toISOString())
 
-    setMonthlyCount(count ?? 0)
+    setWeeklyCount(count ?? 0)
     setLoading(false)
   }
 
-  return { monthlyCount, loading }
+  return { weeklyCount, loading }
 }
+
+// Backward-compat alias
+export const useMonthlySessionCount = useWeeklySessionCount

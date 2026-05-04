@@ -33,6 +33,7 @@ export default function Header() {
     { to: '/employee/members',  label: 'Members'   },
     { to: '/employee/events',   label: 'Events'    },
     { to: '/employee/reports',  label: 'Reports'   },
+    { to: '/kiosk',             label: 'Kiosk'     },
   ]
 
   const links = isEmployee ? employeeLinks : customerLinks

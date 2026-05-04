@@ -108,11 +108,11 @@ ON CONFLICT (id) DO NOTHING;
 -- 3. PROFILES
 INSERT INTO profiles (id, full_name, email, role, membership_type, is_active)
 VALUES
-  ('aaaaaaaa-0001-0001-0001-000000000001', 'Sarah Johnson',  'sarah.johnson@example.com',   'customer', 'subscriber', true),
-  ('aaaaaaaa-0002-0002-0002-000000000002', 'Mike Chen',      'mike.chen@example.com',       'customer', 'subscriber', true),
-  ('aaaaaaaa-0003-0003-0003-000000000003', 'Linda Park',     'linda.park@example.com',      'customer', 'walk_in',    true),
-  ('aaaaaaaa-0004-0004-0004-000000000004', 'James Wu',       'james.wu@example.com',        'customer', 'walk_in',    true),
-  ('aaaaaaaa-0005-0005-0005-000000000005', 'Store Employee', 'employee@mahjongstore.com',   'employee', 'walk_in',    true)
+  ('aaaaaaaa-0001-0001-0001-000000000001', 'Sarah Johnson',  'sarah.johnson@example.com',   'customer', 'four_winds_member', true),
+  ('aaaaaaaa-0002-0002-0002-000000000002', 'Mike Chen',      'mike.chen@example.com',       'customer', 'four_winds_member', true),
+  ('aaaaaaaa-0003-0003-0003-000000000003', 'Linda Park',     'linda.park@example.com',      'customer', 'four_winds_member', true),
+  ('aaaaaaaa-0004-0004-0004-000000000004', 'James Wu',       'james.wu@example.com',        'customer', 'four_winds_member', true),
+  ('aaaaaaaa-0005-0005-0005-000000000005', 'Store Employee', 'employee@mahjongstore.com',   'employee', 'four_winds_member', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- 4. SESSIONS (next 7 days, two per day: afternoon + evening)

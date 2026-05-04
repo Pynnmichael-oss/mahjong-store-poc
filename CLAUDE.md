@@ -19,6 +19,8 @@ Requires a `.env` file at root:
 ```
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SQUARE_APP_ID=your-square-app-id
+VITE_SQUARE_LOCATION_ID=your-square-location-id
 ```
 
 ## Architecture
@@ -36,14 +38,13 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 **Business rules** (`src/lib/businessRules.js`):
 - **Membership tiers** (canonical keys in `MEMBERSHIP_CONFIG`):
   - `dragon_pass` — $149.99/mo, unlimited, 2 buddy passes/mo, early event access, 15% event discount
-  - `flower_pass` — $89.99/mo, 8 sessions/month (`monthlyLimit: 8`), Saturday warning
-  - `four_winds_member` — Free account, pay walk-in rate per session
-  - `walk_in` — pay per session, no account benefits
-  - `subscriber` — legacy, 3 plays/week (`weeklyLimit: 3`)
-  - `unlimited` — backward-compat shim for old DB rows, maps to Dragon Pass legacy
-- Weekly session count uses Mon–Sun boundaries in America/Chicago timezone (`src/lib/dateUtils.js`)
-- Overage flagging: `subscriber` members who've used 3 sessions get `is_flagged_overage = true`
-- Monthly limit warning: `flower_pass` members who've hit 8 sessions get flagged via `shouldWarnMonthlyLimit`
+  - `flower_pass` — $89.99/mo, 2 sessions/week (`weeklyLimit: 2`), $15 overage per extra session
+  - `bamboo_pass` — $49.99/mo, 1 session/week (`weeklyLimit: 1`), $15 overage per extra session
+  - `four_winds_member` — Free account, $15 per session
+- `walk_in` membership type is **retired** — migrated to `four_winds_member`. `walk_in` still exists as a reservation STATUS (unchanged).
+- `getMembershipConfig(unknownType)` falls back to `four_winds_member`
+- Weekly limit is Mon–Sun America/Chicago timezone; `getWeekBoundaries()` computes it
+- Overage flag: `shouldFlagOverage(membershipType, weeklyCount)` — returns true when weekly count ≥ weekly limit
 - Check-in window: 15 minutes from session start time
 - Seats are grouped into 8 tables (Table 1–8), 4 seats each — `getTableForSeat(seatNumber)` maps seat numbers to tables
 - Use `getMembershipConfig(type)` for all tier lookups; `MEMBERSHIP_TIERS` is a backward-compat alias
@@ -56,23 +57,45 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - Employees can book non-member guests via `create_guest_reservation` RPC
 - On success, automatically invokes `send-sms` Supabase Edge Function to SMS the guest
 
+**Booking cost** (`src/lib/calculateBookingCost.js`):
+- `calculateBookingCost({ membershipType, seatCount, weeklySessionsUsed })` — returns `{ ownSeatCost, guestSeatCost, totalCents, extraSeats, isFree, isOverage }` in cents
+- Extra seats (beyond the member's own) are always $15 except dragon_pass (uses buddy passes, so $0)
+- Use this instead of computing costs inline
+
 **Payments** (`src/services/paymentService.js`):
 - Card payments go through `square-payment` Supabase Edge Function via `chargeCard()`
 - Used for walk-in fees and overage charges; passes `reservationId` or `membershipType` for tracking
 
 **Supabase Edge Functions** (`supabase/functions/`):
-- `square-payment/` — processes Square card charges
+- `square-payment/` — processes Square card charges (one-time or card-on-file via `squareCustomerId`/`cardId`)
+- `save-card/` — tokenises and vaults a Square card; stores `square_customer_id` + `square_card_id` on `profiles`
 - `send-sms/` — sends SMS confirmations to guests
+
+**Saved-card flow** (`src/services/cardService.js`):
+- `getSavedCard(userId)` — reads `square_customer_id` / `square_card_id` from `profiles`
+- `saveCard({ userId, token, email, displayName })` → invokes `save-card` Edge Function → returns `{ squareCardId, squareCustomerId, cardLast4, cardBrand }`
+- `chargeCardOnFile({ userId, squareCustomerId, cardId, amountCents, … })` → invokes `square-payment` with stored card credentials
+- `SessionPaymentGate` (`src/components/ui/SessionPaymentGate.jsx`) orchestrates the full reservation-time payment UX: checks if payment is required, shows saved card or Square card entry form, then calls `onPaymentComplete(paymentId | null)`
 
 **Database schema (key tables):**
 - `profiles` — extends `auth.users`; `role`, `membership_type`, `is_active`, `member_number`
 - `sessions` — `date`, `start_time`, `end_time`, `total_seats`, `status`
 - `seats` — `session_id`, `seat_number`, `status` (available/reserved/occupied)
-- `reservations` — `user_id`, `session_id`, `seat_id`, `status` (confirmed/checked_in/no_show/cancelled/walk_in), `is_flagged_overage`, `is_walk_in`, `membership_type_at_booking`, `override_by`, `override_at`
+- `reservations` — `user_id`, `session_id`, `seat_id`, `status` (confirmed/checked_in/no_show/cancelled/walk_in), `is_flagged_overage`, `is_walk_in`, `is_primary_seat` (true for the member's own seat, false for extra/guest seats), `membership_type_at_booking`, `override_by`, `override_at`
 - `buddy_passes` — `owner_id`, `code`, `used_count`, `max_uses`, month-scoped
 - `events` / `event_rsvps` — event listings and RSVP tracking
 
-`seed.sql` in the repo root seeds Supabase with 5 test users (password: `password123`): 2 subscribers, 2 walk-ins, and 1 employee (`employee@mahjongstore.com`).
+`seed.sql` in the repo root seeds Supabase with 5 test users (password: `password123`): 4 four_winds_members and 1 employee (`employee@mahjongstore.com`).
+
+## Kiosk Mode
+
+`/kiosk` — full-screen self-serve check-in page for the front-door iPad + Zebra USB barcode scanner.
+
+- The Zebra scanner acts as a HID keyboard: it types the user's UUID (from their QR code) into a hidden `<input>`, then fires Enter. No camera API is used.
+- Calls `kiosk_check_in(p_user_id)` Supabase RPC (SECURITY DEFINER). The function finds the nearest open session (within a 2-hour window before start + 15 min after), finds the member's `is_primary_seat = true` reservation, and marks it `checked_in`.
+- The RPC SQL must be run manually once in the Supabase SQL editor — it is not in any migration file (see the comment block at the top of `src/pages/KioskPage.jsx`).
+- States: `idle` (pulsing QR icon, hidden input focused) → `loading` → `success` (green, 4 s) or `error` (red, 3 s) → back to `idle`.
+- There is no auth guard on `/kiosk` — it is intentionally public. The subtle "Exit kiosk" link in the bottom-right navigates to `/employee`.
 
 ## Design System
 

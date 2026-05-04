@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import PageWrapper from '../../components/layout/PageWrapper.jsx'
+import CustomerHeader from '../../components/layout/CustomerHeader.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useEvents } from '../../hooks/useEvents.js'
 import EventList from '../../components/events/EventList.jsx'
@@ -45,6 +46,7 @@ export default function EventsPage() {
 
   return (
     <PageWrapper noPad>
+      <CustomerHeader />
       {/* Navy header */}
       <div className="bg-navy px-4 sm:px-6 py-10">
         <div className="max-w-6xl mx-auto">

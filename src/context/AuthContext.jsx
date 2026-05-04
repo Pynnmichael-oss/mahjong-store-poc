@@ -54,6 +54,13 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  async function refreshProfile() {
+    const uid = user?.id
+    if (!uid) return
+    const { data } = await supabase.from('profiles').select('*').eq('id', uid).single()
+    if (data) setProfile(data)
+  }
+
   async function signOut() {
     await supabase.auth.signOut()
     setUser(null)
@@ -63,7 +70,7 @@ export function AuthProvider({ children }) {
   const isEmployee = profile?.role === 'employee'
 
   return (
-    <AuthContext.Provider value={{ user, profile, isEmployee, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, isEmployee, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

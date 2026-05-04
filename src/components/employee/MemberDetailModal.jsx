@@ -135,14 +135,14 @@ export default function MemberDetailModal({ member: initialMember, open, onClose
 
   // local editable state
   const [fullName, setFullName]         = useState(initialMember?.full_name ?? '')
-  const [membershipType, setMembershipType] = useState(initialMember?.membership_type ?? 'walk_in')
+  const [membershipType, setMembershipType] = useState(initialMember?.membership_type ?? 'four_winds_member')
   const [isActive, setIsActive]         = useState(initialMember?.is_active ?? true)
 
   useEffect(() => {
     if (!open || !initialMember) return
     setMember(initialMember)
     setFullName(initialMember.full_name ?? '')
-    setMembershipType(initialMember.membership_type ?? 'walk_in')
+    setMembershipType(initialMember.membership_type ?? 'four_winds_member')
     setIsActive(initialMember.is_active ?? true)
     setResLoading(true)
     fetchMemberReservations(initialMember.id)
@@ -205,8 +205,8 @@ export default function MemberDetailModal({ member: initialMember, open, onClose
           <select value={membershipType} onChange={e => setMembershipType(e.target.value)} className={inputCls} style={{ fontSize: '16px' }}>
             <option value="dragon_pass">Dragon Pass — $149.99/mo</option>
             <option value="flower_pass">Flower Pass — $89.99/mo</option>
+            <option value="bamboo_pass">Bamboo Pass — $49.99/mo</option>
             <option value="four_winds_member">Four Winds Member — Free</option>
-            <option value="walk_in">Walk-in — Per session</option>
           </select>
         </div>
 

@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react'
 import PageWrapper from '../../components/layout/PageWrapper.jsx'
+import CustomerHeader from '../../components/layout/CustomerHeader.jsx'
 import QRCodeDisplay from '../../components/checkin/QRCodeDisplay.jsx'
 import EmptyState from '../../components/ui/EmptyState.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { MEMBERSHIP_TIERS, getTableForSeat } from '../../lib/businessRules.js'
+import { MEMBERSHIP_TIERS, getMembershipBadgeClasses, getTableForSeat } from '../../lib/businessRules.js'
 import { supabase } from '../../services/supabase.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 
 export default function QRPage() {
   const { user, profile } = useAuth()
-  const membershipType = profile?.membership_type ?? 'walk_in'
-  const tier = MEMBERSHIP_TIERS[membershipType] ?? MEMBERSHIP_TIERS.walk_in
+  const membershipType = profile?.membership_type ?? 'four_winds_member'
+  const tier = MEMBERSHIP_TIERS[membershipType] ?? MEMBERSHIP_TIERS.four_winds_member
   const [nextReservation, setNextReservation] = useState(null)
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function QRPage() {
 
   return (
     <PageWrapper noPad>
+      <CustomerHeader />
       {/* Navy header */}
       <div className="bg-navy px-4 sm:px-6 py-10">
         <div className="max-w-6xl mx-auto text-center">
@@ -52,9 +54,7 @@ export default function QRPage() {
 
         <div className="text-center">
           <p className="font-playfair text-xl text-navy">{profile?.full_name ?? '—'}</p>
-          <span className={`inline-flex items-center mt-2 px-4 py-1.5 rounded-full font-sans text-xs font-medium ${
-            membershipType === 'subscriber' ? 'bg-navy text-sky' : 'bg-cream text-navy border border-navy/20'
-          }`}>
+          <span className={`inline-flex items-center mt-2 px-4 py-1.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(membershipType)}`}>
             {tier.name}
           </span>
         </div>

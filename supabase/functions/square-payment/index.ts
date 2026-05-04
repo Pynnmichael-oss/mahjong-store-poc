@@ -46,16 +46,26 @@ serve(async (req) => {
 
   try {
     const {
-      sourceId,
+      token,
+      cardId,
+      squareCustomerId,
       amountCents,
       description = 'Four Winds payment',
       userId,
       reservationId,
       membershipType,
+      paymentType,
     } = await req.json()
 
+    // Support both a fresh token and a saved card on file
+    const sourceId = token ?? cardId
+
+    console.log('[square-payment] userId received:', userId)
+    console.log('[square-payment] paymentType:', paymentType)
+    console.log('[square-payment] membershipType:', membershipType)
+
     if (!sourceId || !amountCents) {
-      throw new Error('sourceId and amountCents are required')
+      throw new Error('A payment token or saved cardId, plus amountCents, are required')
     }
 
     const accessToken = Deno.env.get('SQUARE_ACCESS_TOKEN')
@@ -83,6 +93,7 @@ serve(async (req) => {
         source_id: sourceId,
         idempotency_key: idempotencyKey,
         location_id: locationId,
+        ...(squareCustomerId ? { customer_id: squareCustomerId } : {}),
         amount_money: {
           amount: amountCents,
           currency: 'USD',
@@ -102,28 +113,62 @@ serve(async (req) => {
     const squarePaymentId = squareData.payment?.id
     console.log(`[square-payment] Square payment ID: ${squarePaymentId}`)
 
-    // Insert payment record using service role key (bypasses RLS)
+    // Post-charge DB writes — use service role to bypass RLS
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const db = createClient(supabaseUrl, serviceKey)
 
-    const { data: paymentRow, error: dbError } = await db
-      .from('payments')
-      .insert({
-        user_id: userId ?? null,
-        reservation_id: reservationId ?? null,
-        square_payment_id: squarePaymentId,
-        amount_cents: amountCents,
-        currency: 'USD',
-        description,
-        membership_type: membershipType ?? null,
-        status: 'completed',
-      })
-      .select('id')
-      .single()
+    // Insert payment record — errors are logged but never thrown (don't block the response)
+    let paymentRow: { id: string } | null = null
+    try {
+      const { data, error: dbError } = await db
+        .from('payments')
+        .insert({
+          user_id: userId ?? null,
+          reference_id: reservationId ?? null,
+          square_payment_id: squarePaymentId,
+          square_order_id: squareData.payment?.order_id ?? null,
+          amount_cents: amountCents,
+          currency: 'USD',
+          description,
+          membership_type: membershipType ?? null,
+          payment_type: paymentType ?? (membershipType ? 'membership' : 'session'),
+          status: 'completed',
+          metadata: reservationId ? { reservation_id: reservationId } : null,
+        })
+        .select('id')
+        .single()
 
-    if (dbError) {
-      console.warn('[square-payment] DB insert failed (non-fatal):', dbError.message)
+      if (dbError) {
+        console.error('[square-payment] payments insert failed:', dbError.message, dbError.code, dbError.details)
+      } else {
+        paymentRow = data
+        console.log('[square-payment] payment record inserted:', paymentRow?.id)
+      }
+    } catch (insertErr) {
+      console.error('[square-payment] payments insert threw:', insertErr instanceof Error ? insertErr.message : String(insertErr))
+    }
+
+    // Update membership_type and membership_paid_until on the user's profile
+    if (userId && membershipType) {
+      const paidUntil = new Date()
+      paidUntil.setMonth(paidUntil.getMonth() + 1)
+
+      console.log('[square-payment] updating profile — userId:', userId, 'membershipType:', membershipType)
+
+      const { error: profileError } = await db
+        .from('profiles')
+        .update({
+          membership_type: membershipType,
+          membership_paid_until: paidUntil.toISOString(),
+        })
+        .eq('id', userId)
+
+      if (profileError) {
+        console.error('[square-payment] profile update failed:', profileError.message)
+      } else {
+        console.log('[square-payment] membership updated to:', membershipType)
+      }
     }
 
     return new Response(

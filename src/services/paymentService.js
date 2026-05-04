@@ -16,7 +16,7 @@ export async function chargeCard({ sourceId, amountCents, description, userId, r
   const { data: { session } } = await supabase.auth.getSession()
 
   const { data, error } = await supabase.functions.invoke('square-payment', {
-    body: { sourceId, amountCents, description, userId, reservationId, membershipType },
+    body: { token: sourceId, amountCents, description, userId, reservationId, membershipType },
     headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
   })
 

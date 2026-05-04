@@ -12,9 +12,17 @@ export default function HistoryPage() {
   const { user } = useAuth()
   const { reservations, loading } = useUserReservations(user?.id)
 
+  // Sort by reserved_at descending
   const sorted = [...reservations].sort((a, b) =>
     new Date(b.reserved_at) - new Date(a.reserved_at)
   )
+
+  // For grouped bookings (group_reservation_id != null), show only the primary
+  // seat row. Guest seat rows in the same group are collapsed into the primary.
+  const displayRows = sorted.filter(r => {
+    if (!r.group_reservation_id) return true
+    return r.is_primary_seat === true
+  })
 
   return (
     <PageWrapper noPad>
@@ -29,16 +37,17 @@ export default function HistoryPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {loading ? (
           <LoadingSpinner />
-        ) : sorted.length === 0 ? (
+        ) : displayRows.length === 0 ? (
           <EmptyState message="No check-ins recorded yet. See you at the table." />
         ) : (
           <FadeUp>
             <div className="bg-white rounded-2xl border border-navy/8 shadow-sm overflow-hidden">
-              {sorted.map((r, i) => {
-                const session = r.sessions
-                const seat = r.seats
+              {displayRows.map((r, i) => {
+                const session   = r.sessions
+                const seat      = r.seats
                 const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
-                const isAlt = i % 2 === 1
+                const isAlt     = i % 2 === 1
+                const guestCount = r.guest_count ?? 0
 
                 return (
                   <div
@@ -55,6 +64,11 @@ export default function HistoryPage() {
                       {tableInfo && (
                         <p className="font-sans text-xs text-text-soft mt-0.5">
                           {tableInfo.tableName} Table · Seat {seat.seat_number}
+                          {guestCount > 0 && (
+                            <span className="ml-2 text-sky-mid">
+                              + {guestCount} guest{guestCount !== 1 ? 's' : ''}
+                            </span>
+                          )}
                         </p>
                       )}
                     </div>

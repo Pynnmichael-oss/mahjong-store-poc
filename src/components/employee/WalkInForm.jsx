@@ -36,7 +36,7 @@ export default function WalkInForm({ sessionId, seats, onSubmit, onCancel, disab
     }
 
     const user = users.find(u => u.id === selectedUser)
-    onSubmit({ userId: selectedUser, seatId: selectedSeat.id, membershipType: user?.membership_type ?? 'walk_in' })
+    onSubmit({ userId: selectedUser, seatId: selectedSeat.id, membershipType: user?.membership_type ?? 'four_winds_member' })
   }
 
   const availableSeats = seats.filter(s => s.status === 'available')

@@ -16,12 +16,14 @@ import EventManagePage from '../pages/employee/EventManagePage.jsx'
 import MembersPage from '../pages/employee/MembersPage.jsx'
 import EmployeeSessionsPage from '../pages/employee/EmployeeSessionsPage.jsx'
 import ReportsPage from '../pages/employee/ReportsPage.jsx'
+import KioskPage from '../pages/KioskPage.jsx'
 
 export default function AppRouter() {
   return (
     <HashRouter>
       <Routes>
         <Route path="/" element={<AboutPage />} />
+        <Route path="/kiosk" element={<KioskPage />} />
         <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route path="/signup" element={<PublicOnlyRoute><SignupPage /></PublicOnlyRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

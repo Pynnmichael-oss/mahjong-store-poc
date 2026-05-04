@@ -3,8 +3,8 @@ import PageWrapper from '../../components/layout/PageWrapper.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
-import { useFillRateReport, useWeeklyPlaysReport } from '../../hooks/useReports.js'
-import { formatSessionDate, formatTime, getWeekBoundaries } from '../../lib/dateUtils.js'
+import { useFillRateReport } from '../../hooks/useReports.js'
+import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T12:00:00')
@@ -140,86 +140,6 @@ function FillRateSection() {
   )
 }
 
-// ─── Weekly Plays Report ──────────────────────────────────────────────────────
-function WeeklyPlaysSection() {
-  const [weekStart, setWeekStart] = useState(() => getMondayOf(today()))
-  const weekEnd = addDays(weekStart, 6)
-
-  const { data, loading, error } = useWeeklyPlaysReport(weekStart, weekEnd)
-
-  function prevWeek() { setWeekStart(d => addDays(d, -7)) }
-  function nextWeek() { setWeekStart(d => addDays(d,  7)) }
-
-  return (
-    <div className="bg-white rounded-2xl border border-navy/8 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-5 border-b border-navy/8">
-        <h2 className="font-playfair text-xl text-navy">Weekly Play Counts</h2>
-        <div className="flex items-center gap-2">
-          <button onClick={prevWeek} className="p-2 rounded-full hover:bg-sky-pale transition-colors">
-            <svg className="w-4 h-4 text-navy" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          </button>
-          <p className="font-sans text-sm text-navy whitespace-nowrap">
-            {formatSessionDate(weekStart)} – {formatSessionDate(weekEnd)}
-          </p>
-          <button onClick={nextWeek} className="p-2 rounded-full hover:bg-sky-pale transition-colors">
-            <svg className="w-4 h-4 text-navy" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-          </button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="py-10"><LoadingSpinner /></div>
-      ) : error ? (
-        <div className="px-6 py-4"><Alert type="error">{error}</Alert></div>
-      ) : data.length === 0 ? (
-        <p className="font-cormorant italic text-text-soft text-center py-10">No subscriber plays this week.</p>
-      ) : (
-        <table className="w-full">
-          <thead>
-            <tr className="bg-cream border-b border-navy/8">
-              {['Member', 'Plays This Week', 'Progress'].map(h => (
-                <th key={h} className="py-3 px-4 text-left font-sans text-[11px] uppercase tracking-[3px] text-sky-mid">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map(({ userId, name, count, flagged }, i) => {
-              const pct = Math.min(Math.round((count / 3) * 100), 100)
-              const isAlt = i % 2 === 1
-              return (
-                <tr key={userId} className={`border-b border-navy/5 last:border-0 ${isAlt ? 'bg-sky-pale' : 'bg-white'}`}>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-sans font-medium text-navy text-sm">{name}</span>
-                      {flagged && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium bg-gold-light text-navy border border-gold/30">
-                          Fee due
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-4 font-sans text-sm text-navy">{count} of 3</td>
-                  <td className="py-4 px-4 min-w-[140px]">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-cream overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${count >= 3 ? 'bg-gold' : 'bg-sky-mid'}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="font-sans text-xs text-text-soft w-4">{count}/3</span>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ReportsPage() {
   return (
@@ -233,7 +153,6 @@ export default function ReportsPage() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
         <FadeUp><FillRateSection /></FadeUp>
-        <FadeUp delay={100}><WeeklyPlaysSection /></FadeUp>
       </div>
     </PageWrapper>
   )

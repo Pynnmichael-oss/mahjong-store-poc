@@ -10,7 +10,6 @@ import WalkInForm from '../../components/employee/WalkInForm.jsx'
 import Modal from '../../components/ui/Modal.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 import Badge from '../../components/ui/Badge.jsx'
-import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 import {
@@ -21,8 +20,7 @@ import {
 import { supabase } from '../../services/supabase.js'
 import { checkInReservation } from '../../services/reservationService.js'
 import {
-  getMonthlyCheckInCount,
-  getMonthlyCheckInCountsBatch,
+  getWeeklyCheckInCountsBatch,
 } from '../../services/attendanceService.js'
 
 // ─── Status sort priority ──────────────────────────────────────────────────────
@@ -73,7 +71,7 @@ function ScanSuccess({ data }) {
         </svg>
       </div>
       <p className="font-playfair text-navy text-3xl font-bold text-center">{name}</p>
-      {membershipType && membershipType !== 'walk_in' && (
+      {membershipType && (
         <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(membershipType)}`}>
           {getMembershipLabel(membershipType)}
         </span>
@@ -158,20 +156,18 @@ export default function SessionAttendeesPage() {
   const [flashedRows, setFlashedRows] = useState(new Set())
 
   // ── Shared state ───────────────────────────────────────────────────────────
-  const [paymentTarget, setPaymentTarget] = useState(null)
-  const [paymentError, setPaymentError]   = useState(null)
-  const [showWalkIn, setShowWalkIn]       = useState(false)
-  const [monthlyCountsMap, setMonthlyCountsMap] = useState({})
-  const [flowerLimitTarget, setFlowerLimitTarget] = useState(null)
-  const [lastUpdated, setLastUpdated]     = useState(Date.now())
-  const [timeSince, setTimeSince]         = useState('just now')
+  const [showWalkIn, setShowWalkIn]             = useState(false)
+  const [weeklyCountsMap, setWeeklyCountsMap] = useState({})
+  const [lastUpdated, setLastUpdated]           = useState(Date.now())
+  const [timeSince, setTimeSince]               = useState('just now')
+  const [openMenuId, setOpenMenuId]             = useState(null)
 
   // ── Computed stats ─────────────────────────────────────────────────────────
   const checkedInCount = reservations.filter(r => r.status === 'checked_in' || r.status === 'walk_in').length
   const totalSeats     = session?.total_seats ?? 0
   const remaining      = Math.max(0, totalSeats - checkedInCount)
 
-  const isAnyModalOpen = !!paymentTarget || showWalkIn || !!flowerLimitTarget || !!warningTarget
+  const isAnyModalOpen = showWalkIn || !!warningTarget
 
   // ── Auto-refresh every 15s ─────────────────────────────────────────────────
   useEffect(() => {
@@ -188,12 +184,12 @@ export default function SessionAttendeesPage() {
     return () => clearInterval(interval)
   }, [lastUpdated])
 
-  // ── Batch-fetch monthly counts for flower_pass members ─────────────────────
+  // ── Batch-fetch weekly counts for members with a weekly limit ─────────────
   useEffect(() => {
     const ids = reservations
-      .filter(r => r.profiles?.membership_type === 'flower_pass' && r.user_id)
+      .filter(r => ['flower_pass', 'bamboo_pass'].includes(r.profiles?.membership_type) && r.user_id)
       .map(r => r.user_id)
-    if (ids.length) getMonthlyCheckInCountsBatch(ids).then(setMonthlyCountsMap)
+    if (ids.length) getWeeklyCheckInCountsBatch(ids).then(setWeeklyCountsMap)
   }, [reservations])
 
   // ── Scanner input auto-focus ───────────────────────────────────────────────
@@ -258,20 +254,6 @@ export default function SessionAttendeesPage() {
       if (reservation.status === 'cancelled')  { showScanError('Reservation is cancelled'); return }
       if (reservation.status === 'no_show')    { showScanError('Marked as no-show — use Attendees tab to override'); return }
 
-      // Flower pass monthly limit check
-      if (reservation.profiles?.membership_type === 'flower_pass') {
-        const count = await getMonthlyCheckInCount(userId)
-        if (count >= 8) {
-          setScanState('warning')
-          setWarningTarget({
-            reservation,
-            name: reservation.profiles?.full_name ?? 'Member',
-            count,
-          })
-          return
-        }
-      }
-
       await doScanCheckin(reservation)
     } catch (err) {
       showScanError(err?.message ?? 'An error occurred')
@@ -286,14 +268,14 @@ export default function SessionAttendeesPage() {
       const tableInfo = reservation.seats ? getTableForSeat(reservation.seats.seat_number) : null
       setScanData({
         name: reservation.profiles?.full_name ?? 'Member',
-        membershipType: reservation.profiles?.membership_type ?? 'walk_in',
+        membershipType: reservation.profiles?.membership_type ?? 'four_winds_member',
         tableInfo,
         seatNumber: reservation.seats?.seat_number ?? null,
       })
       setScanState('success')
 
-      if (reservation.profiles?.membership_type === 'flower_pass' && reservation.user_id) {
-        setMonthlyCountsMap(prev => ({ ...prev, [reservation.user_id]: (prev[reservation.user_id] ?? 0) + 1 }))
+      if (['flower_pass', 'bamboo_pass'].includes(reservation.profiles?.membership_type) && reservation.user_id) {
+        setWeeklyCountsMap(prev => ({ ...prev, [reservation.user_id]: (prev[reservation.user_id] ?? 0) + 1 }))
       }
 
       refresh()
@@ -312,10 +294,6 @@ export default function SessionAttendeesPage() {
 
   // ── Attendee tab check-in ──────────────────────────────────────────────────
   function handleAttendeeCheckin(reservation) {
-    if (reservation.profiles?.membership_type === 'flower_pass') {
-      const count = monthlyCountsMap[reservation.user_id] ?? 0
-      if (count >= 8) { setFlowerLimitTarget(reservation); return }
-    }
     doAttendeeCheckin(reservation)
   }
 
@@ -323,21 +301,38 @@ export default function SessionAttendeesPage() {
     handleCheckin(reservation.id, reservation.seat_id, () => {
       setFlashedRows(prev => new Set([...prev, reservation.id]))
       setTimeout(() => setFlashedRows(prev => { const n = new Set(prev); n.delete(reservation.id); return n }), 1000)
-      if (reservation.profiles?.membership_type === 'flower_pass' && reservation.user_id) {
-        setMonthlyCountsMap(prev => ({ ...prev, [reservation.user_id]: (prev[reservation.user_id] ?? 0) + 1 }))
+      if (['flower_pass', 'bamboo_pass'].includes(reservation.profiles?.membership_type) && reservation.user_id) {
+        setWeeklyCountsMap(prev => ({ ...prev, [reservation.user_id]: (prev[reservation.user_id] ?? 0) + 1 }))
       }
       refresh()
       setLastUpdated(Date.now())
     })
   }
 
-  function onPaymentSuccess() {
-    handleCheckin(paymentTarget.id, paymentTarget.seat_id, () => {
+  // ── Manager override helpers ───────────────────────────────────────────────
+  async function handleMarkAsCash(reservation) {
+    try {
+      await checkInReservation(reservation.id, reservation.seat_id)
       refresh()
       setLastUpdated(Date.now())
-      setPaymentTarget(null)
-      setPaymentError(null)
-    })
+    } catch (err) {
+      console.error('[SessionAttendees] mark-as-cash failed:', err.message)
+    }
+  }
+
+  async function handleWaiveFee(reservation) {
+    try {
+      await checkInReservation(reservation.id, reservation.seat_id)
+      // Clear overage flag
+      await supabase
+        .from('reservations')
+        .update({ is_flagged_overage: false })
+        .eq('id', reservation.id)
+      refresh()
+      setLastUpdated(Date.now())
+    } catch (err) {
+      console.error('[SessionAttendees] waive-fee failed:', err.message)
+    }
   }
 
   // ── Sorted / filtered attendees ────────────────────────────────────────────
@@ -471,9 +466,7 @@ export default function SessionAttendeesPage() {
                 onProceed={() => {
                   const r = warningTarget.reservation
                   setWarningTarget(null)
-                  setScanState('default')
-                  setPaymentTarget(r)
-                  setPaymentError(null)
+                  doScanCheckin(r)
                 }}
                 onCancel={() => {
                   setWarningTarget(null)
@@ -534,17 +527,20 @@ export default function SessionAttendeesPage() {
                 const name       = isGuest ? r.guest_name : profile?.full_name
                 const memberTier = isGuest ? null : profile?.membership_type
                 const isFlashed  = flashedRows.has(r.id)
-                const needsPayment = r.is_walk_in || r.is_flagged_overage
-                const monthlyCount = monthlyCountsMap[r.user_id] ?? null
-                const sessionsLeft = memberTier === 'flower_pass' && monthlyCount != null
-                  ? Math.max(0, 8 - monthlyCount) : null
+                const weeklyCount   = weeklyCountsMap[r.user_id] ?? null
+                const weeklyLimit   = memberTier ? (memberTier === 'flower_pass' ? 2 : memberTier === 'bamboo_pass' ? 1 : null) : null
+                const sessionsLeft  = weeklyLimit !== null && weeklyCount !== null
+                  ? Math.max(0, weeklyLimit - weeklyCount) : null
+
+                const isGrouped    = !!r.group_reservation_id
+                const isNonPrimary = isGrouped && r.is_primary_seat === false
 
                 return (
                   <div
                     key={r.id}
                     className={`flex items-center gap-3 px-4 py-3 min-h-[64px] transition-colors duration-500 ${
                       isFlashed ? 'bg-teal-50' : ''
-                    }`}
+                    } ${isNonPrimary ? 'border-l-4 border-l-sky-light pl-3' : ''}`}
                   >
                     {/* Left: name, badges, seat */}
                     <div className="flex-1 min-w-0 space-y-0.5">
@@ -553,9 +549,14 @@ export default function SessionAttendeesPage() {
                           {profile?.membership_type === 'dragon_pass' && <span className="mr-0.5">⭐</span>}
                           {name ?? '—'}
                         </span>
-                        {memberTier && memberTier !== 'walk_in' && memberTier !== 'subscriber' && (
+                        {memberTier && (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-sans text-[10px] font-medium ${getMembershipBadgeClasses(memberTier)}`}>
                             {getMembershipLabel(memberTier)}
+                          </span>
+                        )}
+                        {isGrouped && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full font-sans text-[10px] font-medium bg-sky-light text-sky-mid">
+                            Group
                           </span>
                         )}
                         {r.is_flagged_overage && (
@@ -564,9 +565,14 @@ export default function SessionAttendeesPage() {
                           </span>
                         )}
                       </div>
+                      {r.is_primary_seat && r.guest_count > 0 && (
+                        <p className="font-cormorant text-text-soft" style={{ fontSize: '12px' }}>
+                          +{r.guest_count} guest{r.guest_count !== 1 ? 's' : ''}
+                        </p>
+                      )}
                       {sessionsLeft !== null && (
                         <p className={`font-sans text-xs ${sessionsLeft === 0 ? 'text-gold font-medium' : 'text-text-soft'}`}>
-                          {sessionsLeft === 0 ? 'Monthly limit reached' : `${sessionsLeft} session${sessionsLeft !== 1 ? 's' : ''} left`}
+                          {sessionsLeft === 0 ? 'Weekly limit reached' : `${sessionsLeft} session${sessionsLeft !== 1 ? 's' : ''} left this week`}
                         </p>
                       )}
                       {tableInfo && (
@@ -578,7 +584,7 @@ export default function SessionAttendeesPage() {
 
                     {/* Right: actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {/* Confirmed — show Check In + No Show */}
+                      {/* Confirmed — show Check In + No Show + optional overflow */}
                       {r.status === 'confirmed' && (
                         <>
                           <button
@@ -588,39 +594,51 @@ export default function SessionAttendeesPage() {
                           >
                             No Show
                           </button>
-                          {needsPayment ? (
-                            <button
-                              onClick={() => { setPaymentTarget(r); setPaymentError(null) }}
-                              disabled={processing}
-                              className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-gold text-navy hover:bg-gold/80 transition-all disabled:opacity-50"
-                            >
-                              Pay & In
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleAttendeeCheckin(r)}
-                              disabled={processing}
-                              className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
-                            >
-                              Check In
-                            </button>
+                          <button
+                            onClick={() => handleAttendeeCheckin(r)}
+                            disabled={processing}
+                            className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
+                          >
+                            Check In
+                          </button>
+                          {r.is_flagged_overage && (
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenMenuId(openMenuId === r.id ? null : r.id)}
+                                className="p-1.5 rounded-full font-sans text-xs font-medium text-text-soft hover:text-navy hover:bg-sky-pale transition-all"
+                              >
+                                ⋯
+                              </button>
+                              {openMenuId === r.id && (
+                                <div className="absolute right-0 top-8 bg-white border border-navy/10 rounded-xl shadow-lg z-10 min-w-[140px] py-1">
+                                  <button
+                                    onClick={() => { handleMarkAsCash(r); setOpenMenuId(null) }}
+                                    className="w-full text-left px-4 py-2 font-sans text-xs text-navy hover:bg-sky-pale transition-colors"
+                                  >
+                                    Mark as Cash
+                                  </button>
+                                  <button
+                                    onClick={() => { handleWaiveFee(r); setOpenMenuId(null) }}
+                                    className="w-full text-left px-4 py-2 font-sans text-xs text-navy hover:bg-sky-pale transition-colors"
+                                  >
+                                    Waive Fee
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </>
                       )}
 
-                      {/* Walk_in — show Pay & In */}
+                      {/* Walk_in — show Check In */}
                       {r.status === 'walk_in' && (
-                        needsPayment ? (
-                          <button
-                            onClick={() => { setPaymentTarget(r); setPaymentError(null) }}
-                            disabled={processing}
-                            className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-gold text-navy hover:bg-gold/80 transition-all disabled:opacity-50"
-                          >
-                            Pay & In
-                          </button>
-                        ) : (
-                          <Badge status="walk_in" label="Walk-in ✓" />
-                        )
+                        <button
+                          onClick={() => handleAttendeeCheckin(r)}
+                          disabled={processing}
+                          className="px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50"
+                        >
+                          Check In
+                        </button>
                       )}
 
                       {/* Checked in */}
@@ -678,71 +696,6 @@ export default function SessionAttendeesPage() {
           </button>
         </div>
       )}
-
-      {/* ── Payment modal ────────────────────────────────────────────────────── */}
-      <Modal open={!!paymentTarget} onClose={() => { setPaymentTarget(null); setPaymentError(null) }} title="Collect Payment">
-        {paymentTarget && (
-          <div className="space-y-4">
-            <div className="bg-cream rounded-xl px-4 py-3">
-              <p className="font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-1">
-                {paymentTarget.is_walk_in ? 'Walk-In Fee' : 'Overage Fee'}
-              </p>
-              <p className="font-playfair text-navy text-xl">$20.00</p>
-              <p className="font-sans text-sm text-text-soft mt-0.5">
-                {paymentTarget.profiles?.full_name ?? paymentTarget.guest_name ?? 'Guest'}
-              </p>
-            </div>
-            {paymentError && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                <p className="font-sans text-sm text-red-700">{paymentError}</p>
-              </div>
-            )}
-            <SquarePaymentForm
-              containerId="square-card-checkin"
-              amountCents={2000}
-              description={paymentTarget.is_walk_in ? 'Four Winds walk-in fee' : 'Four Winds overage session fee'}
-              userId={paymentTarget.user_id}
-              reservationId={paymentTarget.id}
-              onSuccess={onPaymentSuccess}
-              onError={msg => setPaymentError(msg)}
-              submitLabel="Collect Payment"
-              disabled={processing}
-            />
-          </div>
-        )}
-      </Modal>
-
-      {/* ── Flower Pass limit modal (attendees tab) ──────────────────────────── */}
-      <Modal open={!!flowerLimitTarget} onClose={() => setFlowerLimitTarget(null)} title="Session Limit Reached">
-        {flowerLimitTarget && (
-          <div className="space-y-5">
-            <div className="bg-gold-light border border-gold/30 rounded-xl px-4 py-4">
-              <p className="font-cormorant italic text-navy text-base leading-relaxed">
-                <strong>{flowerLimitTarget.profiles?.full_name ?? 'This member'}</strong> has used all 8 Flower Pass sessions this month. Walk-in rate applies.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => {
-                  const r = flowerLimitTarget
-                  setFlowerLimitTarget(null)
-                  setPaymentTarget(r)
-                  setPaymentError(null)
-                }}
-                className="w-full py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all"
-              >
-                Check In + Charge Walk-In Rate
-              </button>
-              <button
-                onClick={() => setFlowerLimitTarget(null)}
-                className="w-full py-3 rounded-full font-sans font-medium text-sm border-[1.5px] border-navy/20 text-navy hover:bg-sky-pale transition-all"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
 
       {/* ── Walk-In modal ────────────────────────────────────────────────────── */}
       <Modal open={showWalkIn} onClose={() => setShowWalkIn(false)} title="Add Walk-In">

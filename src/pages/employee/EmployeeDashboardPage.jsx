@@ -41,6 +41,21 @@ const QUICK_LINKS = [
   { to: '/employee/events', label: 'Events', icon: (
     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
   )},
+  { to: '/kiosk', label: 'Kiosk Mode', icon: (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth="1.5"/>
+      <rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/>
+      <rect x="14" y="3" width="7" height="7" rx="1" strokeWidth="1.5"/>
+      <rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/>
+      <rect x="3" y="14" width="7" height="7" rx="1" strokeWidth="1.5"/>
+      <rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/>
+      <rect x="14" y="14" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="18" y="14" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="14" y="18" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="18" y="18" width="2" height="2" fill="currentColor" stroke="none"/>
+      <rect x="16" y="16" width="2" height="2" fill="currentColor" stroke="none"/>
+    </svg>
+  )},
 ]
 
 export default function EmployeeDashboardPage() {
@@ -205,7 +220,7 @@ export default function EmployeeDashboardPage() {
         {/* Quick links */}
         <FadeUp>
           <h2 className="font-playfair text-xl text-navy mb-4">Quick Links</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {QUICK_LINKS.map(({ to, label, icon }) => (
               <Link
                 key={to}

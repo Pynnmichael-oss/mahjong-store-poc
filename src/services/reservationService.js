@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js'
 import { updateSeatStatus } from './seatService.js'
 
-export async function createReservation(payload) {
+export async function createReservation(payload, paymentId = null) {
   // Prevent double-booking before attempting the insert
   if (payload.user_id && payload.session_id) {
     const { count } = await supabase
@@ -9,15 +9,21 @@ export async function createReservation(payload) {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', payload.user_id)
       .eq('session_id', payload.session_id)
-      .in('status', ['confirmed', 'reserved'])
+      .in('status', ['confirmed', 'walk_in', 'checked_in'])
+      // 'cancelled' intentionally excluded — allows rebooking after cancellation
     if (count > 0) {
       throw new Error('You already have a reservation for this session.')
     }
   }
 
+  const insertPayload = {
+    ...payload,
+    payment_status: paymentId ? 'paid' : 'not_required',
+  }
+
   const { data, error } = await supabase
     .from('reservations')
-    .insert(payload)
+    .insert(insertPayload)
     .select()
     .single()
   if (error) {
@@ -26,7 +32,124 @@ export async function createReservation(payload) {
     }
     throw error
   }
+
   await updateSeatStatus(payload.seat_id, payload.is_walk_in ? 'occupied' : 'reserved')
+
+  // Link the payment record back to this reservation
+  if (paymentId && data?.id) {
+    const { error: payErr } = await supabase
+      .from('payments')
+      .update({ reference_id: data.id })
+      .eq('id', paymentId)
+    if (payErr) {
+      console.error('[reservationService] failed to link payment to reservation:', payErr.message)
+    }
+  }
+
+  return data
+}
+
+export async function createMultiSeatReservation({
+  userId, sessionId, selectedSeats, membershipType, isFlaggedOverage, paymentId = null,
+}) {
+  const paymentStatus = paymentId ? 'paid' : 'not_required'
+  const groupId = selectedSeats.length > 1 ? crypto.randomUUID() : null
+  const now = new Date().toISOString()
+
+  const rows = selectedSeats.map((seat, index) => ({
+    user_id:                    userId,
+    session_id:                 sessionId,
+    seat_id:                    seat.id,
+    status:                     'confirmed',
+    payment_status:             paymentStatus,
+    membership_type_at_booking: membershipType,
+    is_flagged_overage:         isFlaggedOverage && index === 0,
+    is_walk_in:                 false,
+    is_primary_seat:            index === 0,
+    guest_count:                index === 0 ? selectedSeats.length - 1 : 0,
+    group_reservation_id:       groupId,
+    reserved_at:                now,
+  }))
+
+  const { data, error } = await supabase
+    .from('reservations')
+    .insert(rows)
+    .select()
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('You already have a reservation for this session.')
+    }
+    throw error
+  }
+
+  await Promise.all(rows.map(r => updateSeatStatus(r.seat_id, 'reserved')))
+
+  if (paymentId) {
+    const primary = data?.find(r => r.is_primary_seat)
+    if (primary) {
+      const { error: payErr } = await supabase
+        .from('payments')
+        .update({ reference_id: primary.id })
+        .eq('id', paymentId)
+      if (payErr) console.error('[reservationService] failed to link payment:', payErr.message)
+    }
+  }
+
+  return data
+}
+
+export async function addSeatsToBooking({
+  userId, sessionId, newSeats, existingGroupId, membershipType, paymentId = null,
+}) {
+  const groupId = existingGroupId ?? crypto.randomUUID()
+  const now = new Date().toISOString()
+
+  const newReservations = newSeats.map(seat => ({
+    user_id:                    userId,
+    session_id:                 sessionId,
+    seat_id:                    seat.id,
+    status:                     'confirmed',
+    payment_status:             paymentId ? 'paid' : 'not_required',
+    membership_type_at_booking: membershipType,
+    is_primary_seat:            false,
+    guest_count:                0,
+    group_reservation_id:       groupId,
+    is_flagged_overage:         false,
+    is_walk_in:                 false,
+    reserved_at:                now,
+  }))
+
+  const { data, error } = await supabase
+    .from('reservations')
+    .insert(newReservations)
+    .select()
+
+  if (error) {
+    if (error.code === '23505') throw new Error('One of those seats was just taken. Please choose another.')
+    throw new Error(error.message)
+  }
+
+  // If no group existed yet, link the primary reservation to the new group
+  if (existingGroupId === null) {
+    await supabase
+      .from('reservations')
+      .update({ group_reservation_id: groupId })
+      .eq('user_id', userId)
+      .eq('session_id', sessionId)
+      .eq('is_primary_seat', true)
+  }
+
+  await Promise.all(newReservations.map(r => updateSeatStatus(r.seat_id, 'reserved')))
+
+  if (paymentId && data?.[0]) {
+    const { error: payErr } = await supabase
+      .from('payments')
+      .update({ reference_id: data[0].id })
+      .eq('id', paymentId)
+    if (payErr) console.error('[reservationService] failed to link add-seats payment:', payErr.message)
+  }
+
   return data
 }
 

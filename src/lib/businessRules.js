@@ -1,6 +1,10 @@
-import { getWeekBoundaries, nowInChicago } from './dateUtils.js'
+import { getWeekBoundaries, getWeekBoundariesForDate, nowInChicago } from './dateUtils.js'
 
 export { getWeekBoundaries }
+
+export const SESSION_WALK_IN_RATE_CENTS = 1500  // $15.00
+export const MAX_SEATS_PER_BOOKING      = 4
+export const GUEST_SEAT_RATE_CENTS      = 1500  // $15 per guest seat
 
 // ─── Seat / table helpers ─────────────────────────────────────────────────────
 
@@ -26,78 +30,80 @@ export function countCheckedInPlaysThisWeek(reservations) {
   }).length
 }
 
+export function countPlaysForSessionWeek(reservations, sessionDate) {
+  // sessionDate: YYYY-MM-DD string — counts reservations in that session's Mon–Sun week
+  const { weekStart, weekEnd } = sessionDate
+    ? getWeekBoundariesForDate(sessionDate)
+    : getWeekBoundaries()
+  return reservations.filter(r => {
+    if (!['confirmed', 'reserved', 'walk_in', 'checked_in'].includes(r.status)) return false
+    if (!r.is_primary_seat) return false  // only count the member's own seat
+    const date = r.sessions?.date
+      ? new Date(r.sessions.date + 'T00:00:00')
+      : new Date(r.reserved_at)
+    return date >= weekStart && date <= weekEnd
+  }).length
+}
+
 // ─── Membership config ────────────────────────────────────────────────────────
 
 export const MEMBERSHIP_CONFIG = {
   dragon_pass: {
-    label:           'Dragon Pass',
-    price:           '$149.99/mo',
-    description:     'Unlimited access + buddy passes',
-    color:           'gold',
-    weeklyLimit:     null,
-    monthlyLimit:    null,
-    buddyPasses:     2,
-    saturdayBlocked: false,
-    saturdayWarning: false,
-    earlyEvents:     true,
-    eventDiscount:   0.15,
+    label:          'Dragon Pass',
+    price:          '$149.99/mo',
+    priceCents:     14999,
+    description:    'Unlimited sessions + 2 buddy passes',
+    color:          'gold',
+    weeklyLimit:    null,
+    monthlyLimit:   null,
+    buddyPasses:    2,
+    earlyEvents:    true,
+    eventDiscount:  0.15,
+    requiresPaymentPerSession: false,
   },
   flower_pass: {
-    label:           'Flower Pass',
-    price:           '$89.99/mo',
-    description:     '8 sessions per month',
-    color:           'teal',
-    weeklyLimit:     null,
-    monthlyLimit:    8,
-    buddyPasses:     0,
-    saturdayBlocked: false,
-    saturdayWarning: true,
-    earlyEvents:     false,
-    eventDiscount:   0,
+    label:          'Flower Pass',
+    price:          '$89.99/mo',
+    priceCents:     8999,
+    description:    '2 sessions per week',
+    color:          'sky',
+    weeklyLimit:    2,
+    monthlyLimit:   null,
+    buddyPasses:    0,
+    earlyEvents:    false,
+    eventDiscount:  0,
+    requiresPaymentPerSession: false,
+  },
+  bamboo_pass: {
+    label:          'Bamboo Pass',
+    price:          '$49.99/mo',
+    priceCents:     4999,
+    description:    '1 session per week',
+    color:          'green',
+    weeklyLimit:    1,
+    monthlyLimit:   null,
+    buddyPasses:    0,
+    earlyEvents:    false,
+    eventDiscount:  0,
+    requiresPaymentPerSession: false,
   },
   four_winds_member: {
-    label:           'Four Winds Member',
-    price:           'Free',
-    description:     'Walk-in price per session',
-    color:           'navy',
-    weeklyLimit:     null,
-    monthlyLimit:    null,
-    buddyPasses:     0,
-    saturdayBlocked: false,
-    saturdayWarning: false,
-    earlyEvents:     false,
-    eventDiscount:   0,
-  },
-  walk_in: {
-    label:           'Walk-in',
-    price:           'Per session',
-    description:     'Pay per session',
-    color:           'sand',
-    weeklyLimit:     null,
-    monthlyLimit:    null,
-    buddyPasses:     0,
-    saturdayBlocked: false,
-    saturdayWarning: false,
-    earlyEvents:     false,
-    eventDiscount:   0,
-  },
-  subscriber: {
-    label:           'Subscriber',
-    price:           '',
-    description:     '3 plays per week',
-    color:           'navy',
-    weeklyLimit:     3,
-    monthlyLimit:    null,
-    buddyPasses:     0,
-    saturdayBlocked: false,
-    saturdayWarning: false,
-    earlyEvents:     false,
-    eventDiscount:   0,
+    label:          'Four Winds Member',
+    price:          'Free account',
+    priceCents:     0,
+    description:    '$15 per session',
+    color:          'navy',
+    weeklyLimit:    null,
+    monthlyLimit:   null,
+    buddyPasses:    0,
+    earlyEvents:    false,
+    eventDiscount:  0,
+    requiresPaymentPerSession: true,
   },
 }
 
 export function getMembershipConfig(type) {
-  return MEMBERSHIP_CONFIG[type] ?? MEMBERSHIP_CONFIG['walk_in']
+  return MEMBERSHIP_CONFIG[type] ?? MEMBERSHIP_CONFIG['four_winds_member']
 }
 
 export function getMembershipLabel(type) {
@@ -112,17 +118,14 @@ export function getMembershipDescription(type) {
 export function getMembershipBadgeClasses(type) {
   const map = {
     dragon_pass:       'bg-gold text-navy',
-    flower_pass:       'bg-teal-100 text-teal-800 border border-teal-200',
+    flower_pass:       'bg-sky-light text-navy border border-sky-mid/30',
+    bamboo_pass:       'bg-[#EAF3DE] text-[#27500A] border border-[#3B6D11]',
     four_winds_member: 'bg-navy text-sky',
-    walk_in:           'bg-cream text-navy border border-navy/20',
-    subscriber:        'bg-navy text-sky',
-    unlimited:         'bg-gold-light text-navy border border-gold/30',
   }
-  return map[type] ?? map.walk_in
+  return map[type] ?? map.four_winds_member
 }
 
 // Backward-compat shim — keeps old field names working for files not yet migrated
-// Also preserves the legacy `unlimited` type so existing DB rows don't break
 export const MEMBERSHIP_TIERS = {
   ...Object.fromEntries(
     Object.entries(MEMBERSHIP_CONFIG).map(([k, v]) => [k, {
@@ -133,13 +136,6 @@ export const MEMBERSHIP_TIERS = {
       tagline:    v.description,
     }])
   ),
-  unlimited: {
-    key: 'unlimited', name: 'Dragon Pass (legacy)', label: 'Dragon Pass (legacy)',
-    priceLabel: '$100/mo', price: '$100/mo',
-    tagline: 'Unlimited play, anytime', description: 'Unlimited play, anytime',
-    weeklyLimit: null, monthlyLimit: null, buddyPasses: 0,
-    saturdayBlocked: false, saturdayWarning: false,
-  },
 }
 
 // ─── Membership predicates ────────────────────────────────────────────────────
@@ -148,28 +144,18 @@ export function isBuddyPassEligible(membershipType) {
   return getMembershipConfig(membershipType).buddyPasses > 0
 }
 
-export function hasSaturdayWarning(membershipType) {
-  return getMembershipConfig(membershipType).saturdayWarning === true
+export function hasWeeklyLimit(membershipType) {
+  return getMembershipConfig(membershipType).weeklyLimit !== null
 }
 
-export function hasMonthlyLimit(membershipType) {
-  return getMembershipConfig(membershipType).monthlyLimit !== null
-}
-
-export function getMonthlyLimit(membershipType) {
-  return getMembershipConfig(membershipType).monthlyLimit
+export function getWeeklyLimit(membershipType) {
+  return getMembershipConfig(membershipType).weeklyLimit
 }
 
 export function shouldFlagOverage(membershipType, weeklyCount) {
   const config = getMembershipConfig(membershipType)
-  if (!config.weeklyLimit) return false
+  if (config.weeklyLimit === null) return false
   return weeklyCount >= config.weeklyLimit
-}
-
-export function shouldWarnMonthlyLimit(membershipType, monthlyCount) {
-  const config = getMembershipConfig(membershipType)
-  if (!config.monthlyLimit) return false
-  return monthlyCount >= config.monthlyLimit
 }
 
 export function hasEarlyEventAccess(membershipType) {

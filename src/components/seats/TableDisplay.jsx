@@ -2,8 +2,12 @@ import SeatButton from './SeatButton.jsx'
 
 // Seat order in data: [seat 1, seat 2, seat 3, seat 4] = [top, right, bottom, left]
 
-export default function TableDisplay({ tableName, seats, selectedSeat, onSelect }) {
+export default function TableDisplay({ tableName, seats, selectedSeats = [], onSelect, existingSeatIds = [] }) {
   const [top, right, bottom, left] = seats.slice(0, 4)
+
+  function getSelIdx(seatId) {
+    return selectedSeats.findIndex(s => s.id === seatId)
+  }
 
   return (
     <div className="flex flex-col items-center">
@@ -14,8 +18,10 @@ export default function TableDisplay({ tableName, seats, selectedSeat, onSelect 
           {left && (
             <SeatButton
               seat={left}
-              selected={selectedSeat?.id === left.id}
+              selected={getSelIdx(left.id) >= 0}
+              selectionIndex={getSelIdx(left.id)}
               onSelect={onSelect}
+              isMyExistingSeat={existingSeatIds.includes(left.id)}
             />
           )}
         </div>
@@ -25,8 +31,10 @@ export default function TableDisplay({ tableName, seats, selectedSeat, onSelect 
           {top && (
             <SeatButton
               seat={top}
-              selected={selectedSeat?.id === top.id}
+              selected={getSelIdx(top.id) >= 0}
+              selectionIndex={getSelIdx(top.id)}
               onSelect={onSelect}
+              isMyExistingSeat={existingSeatIds.includes(top.id)}
             />
           )}
 
@@ -46,8 +54,10 @@ export default function TableDisplay({ tableName, seats, selectedSeat, onSelect 
           {bottom && (
             <SeatButton
               seat={bottom}
-              selected={selectedSeat?.id === bottom.id}
+              selected={getSelIdx(bottom.id) >= 0}
+              selectionIndex={getSelIdx(bottom.id)}
               onSelect={onSelect}
+              isMyExistingSeat={existingSeatIds.includes(bottom.id)}
             />
           )}
         </div>
@@ -57,8 +67,10 @@ export default function TableDisplay({ tableName, seats, selectedSeat, onSelect 
           {right && (
             <SeatButton
               seat={right}
-              selected={selectedSeat?.id === right.id}
+              selected={getSelIdx(right.id) >= 0}
+              selectionIndex={getSelIdx(right.id)}
               onSelect={onSelect}
+              isMyExistingSeat={existingSeatIds.includes(right.id)}
             />
           )}
         </div>

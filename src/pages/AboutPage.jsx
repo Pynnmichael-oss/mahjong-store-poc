@@ -165,8 +165,7 @@ function AboutNav() {
 // ─── Main AboutPage ───────────────────────────────────────────────────────────
 
 export default function AboutPage() {
-  const { user, profile, loading: authLoading } = useAuth()
-  console.log('[AboutPage] auth state:', { user: user?.id ?? 'none', role: profile?.role ?? 'none', loading: authLoading })
+  const { user, isEmployee, loading: authLoading } = useAuth()
 
   const [sessions, setSessions]           = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
@@ -249,18 +248,29 @@ export default function AboutPage() {
 
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/signup"
-              className="px-8 py-4 rounded-full font-sans font-medium text-base bg-navy text-sky border-[1.5px] border-sky hover:bg-navy-deep hover:scale-105 transition-all duration-200 shadow-lg"
-            >
-              New? Get Started Here
-            </Link>
-            <Link
-              to="/login"
-              className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky/50 text-sky hover:bg-sky/10 hover:border-sky transition-all duration-200"
-            >
-              Member Login
-            </Link>
+            {user ? (
+              <Link
+                to={isEmployee ? '/employee' : '/sessions'}
+                className="px-8 py-4 rounded-full font-sans font-medium text-base bg-navy text-sky font-sans text-sm rounded-full px-5 py-2 hover:bg-navy-deep transition-colors"
+              >
+                {isEmployee ? 'Dashboard' : 'My Sessions'}
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/signup"
+                  className="px-8 py-4 rounded-full font-sans font-medium text-base bg-navy text-sky border-[1.5px] border-sky hover:bg-navy-deep hover:scale-105 transition-all duration-200 shadow-lg"
+                >
+                  New? Get Started Here
+                </Link>
+                <Link
+                  to="/login"
+                  className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky/50 text-sky hover:bg-sky/10 hover:border-sky transition-all duration-200"
+                >
+                  Member Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
@@ -494,21 +504,53 @@ export default function AboutPage() {
               </svg>
             </a>
 
-            {/* Address placeholder */}
-            <div className="border border-dashed border-navy/20 rounded-xl p-4">
-              <p className="font-cormorant italic text-text-soft text-sm">[ Address coming soon ]</p>
-            </div>
+            {/* Address */}
+            <a
+              href="https://www.google.com/maps/search/?api=1&query=5111+S+Sheridan+Tulsa+OK+74145"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 font-sans text-sm text-sky-mid hover:text-navy transition-colors duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path fillRule="evenodd" clipRule="evenodd" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+              5111 S Sheridan, Tulsa, OK 74145
+            </a>
           </FadeUp>
 
-          {/* Right — storefront photo */}
+          {/* Right — map */}
           <FadeUp delay={150}>
-            <div className="relative rounded-2xl overflow-hidden min-h-[400px] shadow-lg">
-              <img
-                src={storefrontImg}
-                alt="Four Winds — Coming soon to Tulsa, Oklahoma"
-                className="w-full h-full object-cover absolute inset-0"
-              />
-              <div className="absolute inset-0 bg-navy/20" />
+            <div className="relative rounded-2xl overflow-hidden h-64 sm:h-80 shadow-lg border border-navy/8">
+              <a
+                href="https://www.google.com/maps/search/?api=1&query=5111+S+Sheridan+Tulsa+OK+74145"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open Four Winds location in Google Maps"
+                className="block w-full h-full"
+              >
+                <iframe
+                  title="Four Winds location map"
+                  src="https://www.openstreetmap.org/export/embed.html?bbox=-95.937%2C36.062%2C-95.897%2C36.082&layer=mapnik&marker=36.0721%2C-95.9170"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0, pointerEvents: 'none' }}
+                  loading="lazy"
+                />
+                <div className="absolute inset-0" />
+              </a>
+            </div>
+            <div className="mt-3 text-center">
+              <a
+                href="https://www.google.com/maps/search/?api=1&query=5111+S+Sheridan+Tulsa+OK+74145"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 font-sans text-sm text-sky-mid hover:text-navy transition-colors duration-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                Open in Google Maps
+              </a>
             </div>
           </FadeUp>
         </div>
@@ -535,18 +577,29 @@ export default function AboutPage() {
               Four Winds is your place to play.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/signup"
-                className="px-8 py-4 rounded-full font-sans font-medium text-base bg-sky text-navy hover:bg-sky/85 hover:scale-105 transition-all duration-200 shadow-lg"
-              >
-                New? Get Started Here
-              </Link>
-              <Link
-                to="/login"
-                className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky/50 text-sky hover:bg-sky/10 hover:border-sky transition-all duration-200"
-              >
-                Member Login
-              </Link>
+              {user ? (
+                <Link
+                  to={isEmployee ? '/employee' : '/sessions'}
+                  className="bg-navy text-sky font-sans text-sm rounded-full px-5 py-2 hover:bg-navy-deep transition-colors"
+                >
+                  {isEmployee ? 'Dashboard' : 'My Sessions'}
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/signup"
+                    className="px-8 py-4 rounded-full font-sans font-medium text-base bg-sky text-navy hover:bg-sky/85 hover:scale-105 transition-all duration-200 shadow-lg"
+                  >
+                    New? Get Started Here
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky/50 text-sky hover:bg-sky/10 hover:border-sky transition-all duration-200"
+                  >
+                    Member Login
+                  </Link>
+                </>
+              )}
             </div>
           </FadeUp>
         </div>
@@ -572,9 +625,11 @@ export default function AboutPage() {
                 {label}
               </button>
             ))}
-            <Link to="/login" className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
-              Sign In
-            </Link>
+            {!user && (
+              <Link to="/login" className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
+                Sign In
+              </Link>
+            )}
           </div>
 
           {/* Right — social */}

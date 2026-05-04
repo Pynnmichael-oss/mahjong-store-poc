@@ -35,15 +35,25 @@ export async function createSessionWithSeats(date, startTime, endTime) {
 
 export async function fetchUpcomingSessions() {
   const today = new Date().toISOString().split('T')[0]
-  const { data, error } = await supabase
+  const { data: sessions, error } = await supabase
     .from('sessions')
-    .select('*, seats(id, status)')
+    .select('id, date, start_time, end_time, status, total_seats')
     .gte('date', today)
     .eq('status', 'open')
     .order('date', { ascending: true })
     .order('start_time', { ascending: true })
   if (error) throw error
-  return data
+
+  return Promise.all(
+    (sessions ?? []).map(async session => {
+      const { data: count } = await supabase
+        .rpc('get_session_availability', { p_session_id: session.id })
+      const reservedCount  = count ?? 0
+      const availableSeats = Math.max(0, session.total_seats - reservedCount)
+      const isFull         = availableSeats <= 0
+      return { ...session, reservedCount, availableSeats, isFull }
+    })
+  )
 }
 
 export async function fetchSessionById(sessionId) {

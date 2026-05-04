@@ -74,7 +74,7 @@ function SeatStep({ session, selectedSeat, onSelect }) {
   return (
     <SeatMap
       seats={seats}
-      selectedSeat={selectedSeat}
+      selectedSeats={selectedSeat ? [selectedSeat] : []}
       onSelect={onSelect}
     />
   )
@@ -127,7 +127,7 @@ function ConfirmationCard({ confirmation, onReset }) {
 // ─── Main LandingPage ────────────────────────────────────────────────────────
 
 export default function LandingPage() {
-  const { user, profile, loading: authLoading } = useAuth()
+  const { user, profile, isEmployee, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const bookingRef = useRef(null)
 
@@ -221,12 +221,21 @@ export default function LandingPage() {
             >
               Book a Walk-In Session
             </button>
-            <Link
-              to="/login"
-              className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky text-sky hover:bg-sky/10 transition-all duration-200"
-            >
-              Member Login
-            </Link>
+            {!user ? (
+              <Link
+                to="/login"
+                className="px-8 py-4 rounded-full font-sans font-medium text-base border-[1.5px] border-sky text-sky hover:bg-sky/10 transition-all duration-200"
+              >
+                Member Login
+              </Link>
+            ) : (
+              <Link
+                to={isEmployee ? '/employee' : '/sessions'}
+                className="bg-navy text-sky font-sans text-sm rounded-full px-5 py-2 hover:bg-navy-deep transition-colors"
+              >
+                {isEmployee ? 'Dashboard' : 'My Sessions'}
+              </Link>
+            )}
           </div>
         </div>
       </section>

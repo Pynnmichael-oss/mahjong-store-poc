@@ -1,16 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import PageWrapper from '../../components/layout/PageWrapper.jsx'
+import CustomerHeader from '../../components/layout/CustomerHeader.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { useUserReservations } from '../../hooks/useReservations.js'
-import { useWeeklyLimit } from '../../hooks/useWeeklyLimit.js'
 import { useBuddyPass } from '../../hooks/useBuddyPass.js'
 import { supabase } from '../../services/supabase.js'
-import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate } from '../../lib/businessRules.js'
-import { useMonthlySessionCount } from '../../hooks/useMonthlySessionCount.js'
+import { saveCard } from '../../services/cardService.js'
+import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate, getWeeklyLimit } from '../../lib/businessRules.js'
+import { useWeeklySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
+
+const APP_ID      = import.meta.env.VITE_SQUARE_APP_ID
+const LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID
 
 const UPGRADE_PLANS = [
   {
@@ -27,9 +30,18 @@ const UPGRADE_PLANS = [
     name: 'Flower Pass',
     price: '$89.99',
     amountCents: 8999,
-    border: 'border-t-4 border-teal-500',
-    selectedRing: 'ring-2 ring-teal-500',
-    tagCls: 'bg-teal-50 text-teal-800 border border-teal-200',
+    border: 'border-t-4 border-sky-mid',
+    selectedRing: 'ring-2 ring-sky-mid',
+    tagCls: 'bg-sky-light text-navy border border-sky-mid/30',
+  },
+  {
+    key: 'bamboo_pass',
+    name: 'Bamboo Pass',
+    price: '$49.99',
+    amountCents: 4999,
+    border: 'border-t-4 border-green-600',
+    selectedRing: 'ring-2 ring-green-600',
+    tagCls: 'bg-green-50 text-green-800 border border-green-200',
   },
   {
     key: 'four_winds_member',
@@ -44,8 +56,6 @@ const UPGRADE_PLANS = [
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
-  const { reservations } = useUserReservations(user?.id)
-  const { checkedInCount, isOverLimit } = useWeeklyLimit(reservations, profile?.membership_type)
   const { pass: buddyPass, loading: passLoading, error: passError } = useBuddyPass()
   const [copied, setCopied] = useState(false)
 
@@ -75,6 +85,15 @@ export default function ProfilePage() {
   const [upgradeError, setUpgradeError] = useState(null)
   const [upgradeSuccess, setUpgradeSuccess] = useState(false)
 
+  // ── Card management ────────────────────────────────────────────────────────
+  const [showCardModal, setShowCardModal] = useState(false)
+  const [cardSaving,    setCardSaving]    = useState(false)
+  const [cardModalError, setCardModalError] = useState(null)
+  const [savedCardDisplay, setSavedCardDisplay] = useState(null) // { cardLast4, cardBrand } after save
+  const cardFieldRef = useRef(null)
+  const [cardFieldReady, setCardFieldReady] = useState(false)
+  const [cardFieldError, setCardFieldError] = useState(null)
+
   function openUpgradeModal() {
     setUpgradePlan(null)
     setUpgradeStep('choose')
@@ -88,7 +107,14 @@ export default function ProfilePage() {
       .from('profiles')
       .update({ membership_type: upgradePlan })
       .eq('id', user.id)
-    if (dbErr) { setUpgradeError(dbErr.message); return }
+    if (dbErr) {
+      setUpgradeError(
+        dbErr.message.includes('invalid input value')
+          ? 'This plan is not yet available. Please contact staff.'
+          : dbErr.message
+      )
+      return
+    }
     setUpgradeSuccess(true)
     setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 1500)
   }
@@ -97,7 +123,14 @@ export default function ProfilePage() {
     // Payment went through — update membership
     supabase.from('profiles').update({ membership_type: upgradePlan }).eq('id', user.id)
       .then(({ error: dbErr }) => {
-        if (dbErr) { setUpgradeError(dbErr.message); return }
+        if (dbErr) {
+          setUpgradeError(
+            dbErr.message.includes('invalid input value')
+              ? 'This plan is not yet available. Please contact staff.'
+              : dbErr.message
+          )
+          return
+        }
         setUpgradeSuccess(true)
         setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 1500)
       })
@@ -121,17 +154,76 @@ export default function ProfilePage() {
     setTimeout(() => setSaveMsg(null), 3000)
   }
 
-  const membershipType = profile?.membership_type ?? 'walk_in'
+  // ── Square init for card modal ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!showCardModal) return
+
+    let card = null
+    let cancelled = false
+
+    async function initSquare() {
+      if (!APP_ID || !LOCATION_ID) {
+        setCardFieldError('Square not configured')
+        return
+      }
+      try {
+        const { payments } = await import('@square/web-sdk')
+        const instance = await payments(APP_ID, LOCATION_ID)
+        card = await instance.card()
+        await card.attach('#profile-card-field')
+        if (!cancelled) {
+          cardFieldRef.current = card
+          setCardFieldReady(true)
+        }
+      } catch (err) {
+        if (!cancelled) setCardFieldError(err?.message ?? 'Failed to load card form')
+      }
+    }
+
+    initSquare()
+
+    return () => {
+      cancelled = true
+      card?.destroy?.()
+      cardFieldRef.current = null
+      setCardFieldReady(false)
+      setCardFieldError(null)
+    }
+  }, [showCardModal]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleSaveCard(e) {
+    e.preventDefault()
+    if (!cardFieldRef.current || !cardFieldReady || cardSaving) return
+    setCardSaving(true)
+    setCardModalError(null)
+    try {
+      const result = await cardFieldRef.current.tokenize()
+      if (result.status !== 'OK') {
+        throw new Error(result.errors?.[0]?.message ?? 'Card validation failed')
+      }
+      const saved = await saveCard({
+        userId:      user.id,
+        token:       result.token,
+        email:       user.email,
+        displayName: profile.full_name ?? user.email,
+      })
+      setSavedCardDisplay({ cardLast4: saved.cardLast4, cardBrand: saved.cardBrand })
+      setShowCardModal(false)
+    } catch (err) {
+      setCardModalError(err.message ?? 'Failed to save card')
+    } finally {
+      setCardSaving(false)
+    }
+  }
+
+  const membershipType = profile?.membership_type ?? 'four_winds_member'
   const config = getMembershipConfig(membershipType)
-  const { monthlyCount } = useMonthlySessionCount()
-  console.log('[Profile] membership:', profile?.membership_type, '→ resolved:', membershipType)
-  console.log('[Profile] buddyEligible:', isBuddyPassEligible(membershipType), '| buddyPass:', buddyPass, '| passLoading:', passLoading)
-  const isSubscriber = membershipType === 'subscriber'
+  const { weeklyCount } = useWeeklySessionCount()
   const isDragonPass = membershipType === 'dragon_pass'
   const isFlowerPass = membershipType === 'flower_pass'
-  const playsMax = 3
-  const progressPct = isSubscriber ? Math.min((checkedInCount / playsMax) * 100, 100) : 100
-  const monthlyPct  = isFlowerPass ? Math.min((monthlyCount / 8) * 100, 100) : 0
+  const isBambooPass = membershipType === 'bamboo_pass'
+  const weeklyLimit  = getWeeklyLimit(membershipType)
+  const weeklyPct    = weeklyLimit ? Math.min((weeklyCount / weeklyLimit) * 100, 100) : 0
 
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -139,6 +231,7 @@ export default function ProfilePage() {
 
   return (
     <PageWrapper noPad>
+      <CustomerHeader />
       {/* Navy hero */}
       <div className="bg-navy px-4 sm:px-6 py-10">
         <div className="max-w-6xl mx-auto">
@@ -245,44 +338,24 @@ export default function ProfilePage() {
         <FadeUp delay={150}>
           <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
             <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-4">
-              {isFlowerPass ? 'This Month' : 'This Week'}
+              {(isFlowerPass || isBambooPass) ? 'Sessions This Week' : 'Sessions'}
             </label>
 
-            {isSubscriber && (
+            {(isFlowerPass || isBambooPass) && weeklyLimit && (
               <>
                 <div className="flex justify-between font-sans text-sm mb-2">
-                  <span className="text-text-mid">{checkedInCount} of {playsMax} plays used</span>
-                  <span className={isOverLimit ? 'text-gold font-medium' : 'text-sky-mid font-medium'}>
-                    {isOverLimit ? 'Limit reached' : `${playsMax - checkedInCount} remaining`}
+                  <span className="text-text-mid">{weeklyCount} of {weeklyLimit} used</span>
+                  <span className={weeklyCount >= weeklyLimit ? 'text-gold font-medium' : 'text-sky-mid font-medium'}>
+                    {weeklyCount >= weeklyLimit ? 'Limit reached' : `${weeklyLimit - weeklyCount} remaining`}
                   </span>
                 </div>
-                <div className="w-full h-2.5 bg-sky-pale rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${isOverLimit ? 'bg-gold' : 'bg-navy'}`}
-                    style={{ width: `${progressPct}%` }} />
+                <div className="w-full h-2.5 bg-sky-light rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all duration-500 ${weeklyCount >= weeklyLimit ? 'bg-gold' : 'bg-sky-mid'}`}
+                    style={{ width: `${weeklyPct}%` }} />
                 </div>
-                {isOverLimit && (
+                {weeklyCount >= weeklyLimit && (
                   <p className="font-cormorant italic text-navy text-base mt-4 leading-relaxed bg-gold-light rounded-xl px-4 py-3">
-                    You've reached your weekly limit. A walk-in fee applies at the door.
-                  </p>
-                )}
-              </>
-            )}
-
-            {isFlowerPass && (
-              <>
-                <div className="flex justify-between font-sans text-sm mb-2">
-                  <span className="text-text-mid">{monthlyCount} of 8 sessions used</span>
-                  <span className={monthlyCount >= 8 ? 'text-gold font-medium' : 'text-teal-700 font-medium'}>
-                    {monthlyCount >= 8 ? 'Limit reached' : `${8 - monthlyCount} remaining`}
-                  </span>
-                </div>
-                <div className="w-full h-2.5 bg-teal-50 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${monthlyCount >= 8 ? 'bg-gold' : 'bg-teal-500'}`}
-                    style={{ width: `${monthlyPct}%` }} />
-                </div>
-                {monthlyCount >= 8 && (
-                  <p className="font-cormorant italic text-navy text-base mt-4 leading-relaxed bg-gold-light rounded-xl px-4 py-3">
-                    You've used all 8 sessions this month. Walk-in pricing applies at the door.
+                    You've used your {weeklyLimit === 1 ? 'session' : `${weeklyLimit} sessions`} this week. A $15 overage fee applies.
                   </p>
                 )}
               </>
@@ -292,8 +365,47 @@ export default function ProfilePage() {
               <p className="font-cormorant italic text-sky-mid text-lg">Unlimited plays — no restrictions.</p>
             )}
 
-            {!isSubscriber && !isFlowerPass && !isDragonPass && (
-              <p className="font-cormorant italic text-text-mid text-lg">Walk-in rates apply per session.</p>
+            {!isFlowerPass && !isBambooPass && !isDragonPass && (
+              <p className="font-cormorant italic text-text-mid text-lg">$15 per session at booking.</p>
+            )}
+          </div>
+        </FadeUp>
+
+        {/* Payment method */}
+        <FadeUp delay={175}>
+          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-4">Payment Method</label>
+            {profile?.square_card_id || savedCardDisplay ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-7 bg-sky-light rounded border border-navy/10 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-navy/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z" />
+                    </svg>
+                  </div>
+                  <span className="font-sans text-sm text-navy">
+                    {savedCardDisplay
+                      ? `${savedCardDisplay.cardBrand} ···· ${savedCardDisplay.cardLast4}`
+                      : 'Card on file'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => { setShowCardModal(true); setCardModalError(null) }}
+                  className="font-sans text-xs text-sky-mid hover:text-navy transition-colors"
+                >
+                  Update card →
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="font-cormorant italic text-text-soft text-base">No card saved</p>
+                <button
+                  onClick={() => { setShowCardModal(true); setCardModalError(null) }}
+                  className="font-sans text-xs text-sky-mid hover:text-navy transition-colors"
+                >
+                  Add card →
+                </button>
+              </div>
             )}
           </div>
         </FadeUp>
@@ -389,6 +501,62 @@ export default function ProfilePage() {
         )}
 
       </div>
+
+      {/* Card add/update modal */}
+      {showCardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm" onClick={() => setShowCardModal(false)} />
+          <div className="relative bg-warm-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-playfair text-navy text-2xl">
+                {profile?.square_card_id ? 'Update Card' : 'Add Card'}
+              </h2>
+              <button
+                onClick={() => setShowCardModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-sky-pale transition-colors"
+              >
+                <svg className="w-4 h-4 text-text-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCard} className="space-y-4">
+              <div>
+                <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-2">
+                  Card Details
+                </label>
+                <div
+                  id="profile-card-field"
+                  className="min-h-[44px] rounded-xl border border-navy/20 bg-white px-1 py-1"
+                />
+                {!cardFieldReady && !cardFieldError && (
+                  <p className="font-sans text-xs text-text-soft mt-1">Loading card field…</p>
+                )}
+                {cardFieldError && (
+                  <p className="font-sans text-xs text-red-600 mt-1">{cardFieldError}</p>
+                )}
+              </div>
+
+              {cardModalError && <Alert type="error">{cardModalError}</Alert>}
+
+              {import.meta.env.DEV && (
+                <p className="font-sans text-[11px] text-text-soft text-center">
+                  Sandbox — use <span className="font-mono">4111 1111 1111 1111</span>, any future date, any CVV
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={!cardFieldReady || cardSaving}
+                className="w-full bg-navy text-sky rounded-full py-3 font-sans font-medium text-sm hover:bg-navy-deep transition-all disabled:opacity-50"
+              >
+                {cardSaving ? 'Saving…' : 'Save Card'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Change Plan modal */}
       {showUpgradeModal && (
@@ -488,7 +656,7 @@ export default function ProfilePage() {
                     containerId="square-card-profile"
                     amountCents={plan?.amountCents ?? 0}
                     description={`Four Winds ${plan?.name} membership`}
-                    userId={user?.id}
+                    userId={user?.id ?? null}
                     membershipType={upgradePlan}
                     onSuccess={handleUpgradePaymentSuccess}
                     onError={msg => setUpgradeError(msg)}

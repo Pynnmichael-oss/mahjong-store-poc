@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js'
 import { checkInReservation, markNoShow, overrideNoShow, createReservation } from './reservationService.js'
 import { isWithinCheckinWindow } from '../lib/businessRules.js'
+import { getWeekBoundaries } from '../lib/dateUtils.js'
 
 export async function processQRCheckin(userId, sessionId) {
   const { data: reservation, error } = await supabase
@@ -52,41 +53,41 @@ export async function processCheckinByMemberNumber(memberNumber, sessionId) {
 
 export { markNoShow, overrideNoShow }
 
-export async function getMonthlyCheckInCount(userId) {
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+export async function getWeeklyCheckInCount(userId) {
+  const { weekStart, weekEnd } = getWeekBoundaries()
 
   const { count } = await supabase
     .from('reservations')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('status', 'checked_in')
-    .eq('membership_type_at_booking', 'flower_pass')
-    .gte('checked_in_at', monthStart)
-    .lt('checked_in_at', monthEnd)
+    .eq('is_primary_seat', true)
+    .in('status', ['confirmed', 'walk_in', 'checked_in'])
+    .gte('created_at', weekStart.toISOString())
+    .lte('created_at', weekEnd.toISOString())
 
   return count ?? 0
 }
 
-export async function getMonthlyCheckInCountsBatch(userIds) {
+export async function getWeeklyCheckInCountsBatch(userIds) {
   if (!userIds.length) return {}
 
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+  const { weekStart, weekEnd } = getWeekBoundaries()
 
   const { data } = await supabase
     .from('reservations')
     .select('user_id')
     .in('user_id', userIds)
-    .eq('status', 'checked_in')
-    .eq('membership_type_at_booking', 'flower_pass')
-    .gte('checked_in_at', monthStart)
-    .lt('checked_in_at', monthEnd)
+    .eq('is_primary_seat', true)
+    .in('status', ['confirmed', 'walk_in', 'checked_in'])
+    .gte('created_at', weekStart.toISOString())
+    .lte('created_at', weekEnd.toISOString())
 
   const counts = {}
   userIds.forEach(id => { counts[id] = 0 })
   ;(data ?? []).forEach(r => { counts[r.user_id] = (counts[r.user_id] ?? 0) + 1 })
   return counts
 }
+
+// Backward-compat aliases
+export const getMonthlyCheckInCount = getWeeklyCheckInCount
+export const getMonthlyCheckInCountsBatch = getWeeklyCheckInCountsBatch

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../services/supabase.js'
+import { saveCard, chargeCardOnFile } from '../../services/cardService.js'
+import { useAuth } from '../../context/AuthContext.jsx'
 import FloatingTiles from '../../components/layout/FloatingTiles.jsx'
 import Alert from '../../components/ui/Alert.jsx'
-import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
 
 // ─── Membership plan definitions (signup-specific) ────────────────────────────
 const PLANS = [
@@ -12,13 +13,14 @@ const PLANS = [
     name: 'Dragon Pass',
     price: '$149.99',
     period: '/mo',
+    amountCents: 14999,
     border: 'border-t-4 border-gold',
     selectedBorder: 'border-2 border-gold',
     btn: 'bg-navy text-sky hover:bg-navy-deep',
     benefits: [
-      'Unlimited access — 7 days a week',
+      'Unlimited sessions — 7 days a week',
       '2 buddy passes per month',
-      '15% off event rentals + early access',
+      '15% off events + early access',
     ],
   },
   {
@@ -26,13 +28,29 @@ const PLANS = [
     name: 'Flower Pass',
     price: '$89.99',
     period: '/mo',
-    border: 'border-t-4 border-teal-500',
-    selectedBorder: 'border-2 border-teal-500',
-    btn: 'bg-teal-600 text-white hover:bg-teal-700',
+    amountCents: 8999,
+    border: 'border-t-4 border-sky-mid',
+    selectedBorder: 'border-2 border-sky-mid',
+    btn: 'bg-sky-mid text-navy hover:bg-sky',
     benefits: [
-      '8 sessions per month',
-      'Mon–Fri + Saturday access',
-      'Walk-in rate applies on Saturdays',
+      '2 sessions per week',
+      'Own seat free within limit',
+      '$15 overage per extra session',
+    ],
+  },
+  {
+    key: 'bamboo_pass',
+    name: 'Bamboo Pass',
+    price: '$49.99',
+    period: '/mo',
+    amountCents: 4999,
+    border: 'border-t-4 border-green-600',
+    selectedBorder: 'border-2 border-green-600',
+    btn: 'bg-green-600 text-white hover:bg-green-700',
+    benefits: [
+      '1 session per week',
+      'Own seat free within limit',
+      '$15 overage per extra session',
     ],
   },
   {
@@ -40,11 +58,12 @@ const PLANS = [
     name: 'Four Winds Member',
     price: 'Free',
     period: '',
+    amountCents: 0,
     border: 'border-t-4 border-navy',
     selectedBorder: 'border-2 border-navy',
     btn: 'bg-white text-navy border border-navy hover:bg-sky-pale',
     benefits: [
-      'Walk-in rate per session',
+      '$15 per session',
       'Reserve seats in advance',
       'No monthly commitment',
     ],
@@ -94,6 +113,7 @@ function EyeIcon({ open }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SignupPage() {
   const navigate = useNavigate()
+  const { refreshProfile } = useAuth()
 
   // Step 1 state
   const [step, setStep]               = useState(1)
@@ -110,7 +130,55 @@ export default function SignupPage() {
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState(null)
 
+  // Step 3 Square card state
+  const signupCardRef                 = useRef(null)
+  const [signupCardReady, setSignupCardReady] = useState(false)
+  const [signupCardError, setSignupCardError] = useState(null)
+
   const inputCls = 'w-full bg-white border border-navy/20 rounded-full px-5 py-3 text-base font-sans text-navy placeholder:text-text-soft focus:outline-none focus:ring-2 focus:ring-navy/30 focus:border-navy/40 transition-all'
+
+  // ── Square SDK init for Step 3 ─────────────────────────────────────────────
+  useEffect(() => {
+    if (step !== 3) return
+
+    const APP_ID      = import.meta.env.VITE_SQUARE_APP_ID
+    const LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID
+
+    if (!APP_ID || !LOCATION_ID) {
+      setSignupCardError('Square is not configured. Add VITE_SQUARE_APP_ID and VITE_SQUARE_LOCATION_ID to .env')
+      return
+    }
+
+    let card = null
+    let cancelled = false
+
+    async function init() {
+      try {
+        const { payments } = await import('@square/web-sdk')
+        const paymentsInstance = await payments(APP_ID, LOCATION_ID)
+        card = await paymentsInstance.card()
+        await card.attach('#square-card-signup')
+        if (!cancelled) {
+          signupCardRef.current = card
+          setSignupCardReady(true)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSignupCardError(err?.message ?? 'Failed to load payment form')
+        }
+      }
+    }
+
+    init()
+
+    return () => {
+      cancelled = true
+      card?.destroy?.()
+      signupCardRef.current = null
+      setSignupCardReady(false)
+      setSignupCardError(null)
+    }
+  }, [step])
 
   // ── Step 1 validation ──────────────────────────────────────────────────────
   function handleContinue(e) {
@@ -128,7 +196,7 @@ export default function SignupPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const isPaidPlan = selected === 'dragon_pass' || selected === 'flower_pass'
+  const isPaidPlan = PLANS.find(p => p.key === selected)?.amountCents > 0
 
   // ── Step 2 → advance ──────────────────────────────────────────────────────
   function handlePlanContinue() {
@@ -140,51 +208,141 @@ export default function SignupPage() {
     }
   }
 
-  // ── Account creation ───────────────────────────────────────────────────────
-  async function handleCreate(paymentId) {
+  // ── Free-plan account creation ─────────────────────────────────────────────
+  async function handleCreate() {
     setLoading(true)
     setError(null)
     const fullName = `${firstName.trim()} ${lastName.trim()}`
-
-    const { data, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          phone: phone.trim(),
-        },
-      },
-    })
-
-    if (authError) { setError(authError.message); setLoading(false); return }
-
-    if (data?.user) {
-      await supabase
-        .from('profiles')
-        .upsert(
-          {
-            id: data.user.id,
+    try {
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
             full_name: fullName,
-            email,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
             phone: phone.trim(),
-            role: 'customer',
-            membership_type: selected,
-            is_active: true,
           },
-          { onConflict: 'id' }
-        )
+        },
+      })
 
-      // Safety net explicit update
-      await supabase
-        .from('profiles')
-        .update({ full_name: fullName, phone: phone.trim(), membership_type: selected })
-        .eq('id', data.user.id)
+      if (authError) { setError(authError.message); return }
+
+      if (data?.user) {
+        await supabase
+          .from('profiles')
+          .upsert(
+            {
+              id: data.user.id,
+              full_name: fullName,
+              email,
+              phone: phone.trim(),
+              role: 'customer',
+              membership_type: selected,
+              is_active: true,
+            },
+            { onConflict: 'id' }
+          )
+
+        await new Promise(r => setTimeout(r, 500))
+
+        const { error: updateErr } = await supabase
+          .from('profiles')
+          .update({ full_name: fullName, phone: phone.trim(), membership_type: selected })
+          .eq('id', data.user.id)
+        if (updateErr) console.error('[Signup] profile update error:', updateErr.message)
+      }
+
+      navigate('/dashboard', { replace: true })
+    } finally {
+      setLoading(false)
     }
+  }
 
-    navigate('/dashboard', { replace: true })
+  // ── Paid-plan: signup + save card + charge ─────────────────────────────────
+  async function handleSignupAndPay(e) {
+    e.preventDefault()
+    if (!signupCardRef.current || loading) return
+    setLoading(true)
+    setError(null)
+
+    try {
+      // 1. Tokenize card
+      const result = await signupCardRef.current.tokenize()
+      if (result.status !== 'OK') {
+        setError(result.errors?.[0]?.message ?? 'Card validation failed')
+        return
+      }
+      const token = result.token
+
+      // 2. Create auth account
+      const fullName = `${firstName.trim()} ${lastName.trim()}`
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            phone: phone.trim(),
+          },
+        },
+      })
+      if (authError) { setError(authError.message); return }
+
+      const userId = data?.user?.id
+      if (!userId) { setError('Account creation failed. Please try again.'); return }
+
+      // 3. Upsert profile with chosen plan
+      const { error: upsertError } = await supabase.from('profiles').upsert(
+        { id: userId, full_name: fullName, email, phone: phone.trim(), role: 'customer', membership_type: selected, is_active: true },
+        { onConflict: 'id' }
+      )
+      if (upsertError) console.error('[Signup] profile upsert error:', upsertError.message)
+      const { error: profileUpdateErr } = await supabase.from('profiles').update({ full_name: fullName, phone: phone.trim(), membership_type: selected }).eq('id', userId)
+      if (profileUpdateErr) console.error('[Signup] profile update error:', profileUpdateErr.message)
+
+      // 4. Vault card via save-card Edge Function — delay lets Supabase replicate the upsert
+      await new Promise(r => setTimeout(r, 500))
+      await saveCard({ userId, token, email, displayName: fullName })
+
+      // 5. Fetch fresh profile — square_customer_id / square_card_id written by Edge Function
+      const { data: freshProfile } = await supabase
+        .from('profiles')
+        .select('square_customer_id, square_card_id')
+        .eq('id', userId)
+        .single()
+
+      if (!freshProfile?.square_customer_id || !freshProfile?.square_card_id) {
+        console.warn('[Signup] square_customer_id or square_card_id missing after save-card')
+        setError('Account created! Card could not be saved — you can add it from your profile.')
+        setTimeout(() => navigate('/sessions', { replace: true }), 2000)
+        return
+      }
+
+      // 6. Charge saved card for first month
+      console.log('[Signup] charging for membership:', selected, 'userId:', userId)
+      await chargeCardOnFile({
+        userId,
+        squareCustomerId: freshProfile.square_customer_id,
+        cardId: freshProfile.square_card_id,
+        amountCents: selectedPlan.amountCents,
+        description: `Four Winds ${selectedPlan.name} — first month`,
+        membershipType: selected,
+        paymentType: 'membership',
+      })
+
+      // 7. Sync profile state in AuthContext
+      await refreshProfile()
+
+      navigate('/sessions', { replace: true })
+    } catch (err) {
+      setError(err?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const selectedPlan = PLANS.find(p => p.key === selected)
@@ -339,7 +497,7 @@ export default function SignupPage() {
             {error && <Alert type="error">{error}</Alert>}
 
             {/* Plan cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {PLANS.map(plan => {
                 const isSelected = selected === plan.key
                 return (
@@ -438,15 +596,39 @@ export default function SignupPage() {
             {error && <Alert type="error">{error}</Alert>}
 
             <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
-              <SquarePaymentForm
-                containerId="square-card-signup"
-                amountCents={selected === 'dragon_pass' ? 14999 : 8999}
-                description={`Four Winds ${selectedPlan.name} — first month`}
-                membershipType={selected}
-                onSuccess={() => handleCreate()}
-                onError={msg => setError(msg)}
-                submitLabel={`Pay ${selectedPlan.price}`}
-              />
+              <form onSubmit={handleSignupAndPay} className="space-y-5">
+                <div>
+                  <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-2">
+                    Card Details
+                  </label>
+                  <div
+                    id="square-card-signup"
+                    className="min-h-[44px] rounded-xl border border-navy/20 bg-white px-1 py-1"
+                  />
+                  {!signupCardReady && !signupCardError && (
+                    <p className="font-sans text-xs text-text-soft mt-2">Loading card field…</p>
+                  )}
+                  {signupCardError && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-2">
+                      <p className="font-sans text-sm text-red-700">{signupCardError}</p>
+                    </div>
+                  )}
+                </div>
+
+                {import.meta.env.DEV && (
+                  <p className="font-sans text-[11px] text-text-soft text-center">
+                    Sandbox — use card <span className="font-mono">4111 1111 1111 1111</span>, any future date, any CVV
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!signupCardReady || loading || !!signupCardError}
+                  className="w-full bg-navy text-sky rounded-full py-3.5 font-sans font-medium text-base hover:bg-navy-deep transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Processing…' : `Pay ${selectedPlan.price} & Create Account`}
+                </button>
+              </form>
             </div>
 
             <p className="text-center">
