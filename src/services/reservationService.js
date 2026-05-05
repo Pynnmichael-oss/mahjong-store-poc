@@ -211,3 +211,41 @@ export async function cancelReservation(reservationId, seatId) {
   await updateSeatStatus(seatId, 'available')
   return data
 }
+
+export async function checkCancellationEligibility(reservationId, userId) {
+  const { data, error } = await supabase.rpc('get_cancellation_eligibility', {
+    p_reservation_id: reservationId,
+    p_user_id:        userId,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function cancelReservationWithRefund(reservationId, userId, isEmployee = false) {
+  const { data, error } = await supabase.rpc('cancel_reservation_with_refund', {
+    p_reservation_id: reservationId,
+    p_user_id:        userId,
+    p_is_employee:    isEmployee,
+  })
+  if (error) throw error
+  if (!data?.success) throw new Error(data?.reason ?? 'Cancellation failed')
+
+  // If refundable, trigger refund via Edge Function
+  if (data.refundable && data.square_payment_id) {
+    const { data: { session: authSession } } = await supabase.auth.getSession()
+    const { data: refundData, error: refundError } = await supabase.functions.invoke('square-refund', {
+      body: {
+        squarePaymentId: data.square_payment_id,
+        amountCents:     data.refund_amount,
+        reason:          'Customer cancellation',
+      },
+      headers: authSession?.access_token
+        ? { Authorization: `Bearer ${authSession.access_token}` }
+        : {},
+    })
+    if (refundError) console.error('[cancelReservation] refund invoke failed:', refundError.message)
+    if (!refundData?.success) console.error('[cancelReservation] refund failed:', refundData?.error)
+  }
+
+  return data
+}

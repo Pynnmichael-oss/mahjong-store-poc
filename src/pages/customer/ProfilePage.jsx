@@ -5,7 +5,9 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import { useBuddyPass } from '../../hooks/useBuddyPass.js'
 import { supabase } from '../../services/supabase.js'
 import { saveCard } from '../../services/cardService.js'
-import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate, getWeeklyLimit } from '../../lib/businessRules.js'
+import { checkCancellationEligibility, cancelReservationWithRefund } from '../../services/reservationService.js'
+import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate, getWeeklyLimit, getTableForSeat } from '../../lib/businessRules.js'
+import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 import { useWeeklySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
@@ -93,6 +95,13 @@ export default function ProfilePage() {
   const cardFieldRef = useRef(null)
   const [cardFieldReady, setCardFieldReady] = useState(false)
   const [cardFieldError, setCardFieldError] = useState(null)
+
+  const [reservations,  setReservations]  = useState([])
+  const [resLoading,    setResLoading]    = useState(true)
+  const [cancellingId,  setCancellingId]  = useState(null)
+  const [cancelModal,   setCancelModal]   = useState(null) // { reservation, eligibility }
+  const [cancelError,   setCancelError]   = useState(null)
+  const [cancelSuccess, setCancelSuccess] = useState(false)
 
   function openUpgradeModal() {
     setUpgradePlan(null)
@@ -213,6 +222,55 @@ export default function ProfilePage() {
       setCardModalError(err.message ?? 'Failed to save card')
     } finally {
       setCardSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('reservations')
+      .select('*, sessions(*), seats(*)')
+      .eq('user_id', user.id)
+      .in('status', ['confirmed'])
+      .order('reserved_at', { ascending: false })
+      .then(({ data }) => {
+        const upcoming = (data ?? []).filter(r => {
+          if (!r.sessions?.date) return false
+          const sessionDate = new Date(r.sessions.date + 'T23:59:59')
+          return sessionDate >= new Date()
+        })
+        setReservations(upcoming)
+        setResLoading(false)
+      })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCancelClick(reservation) {
+    setCancelError(null)
+    setCancellingId(reservation.id)
+    try {
+      const eligibility = await checkCancellationEligibility(reservation.id, user.id)
+      setCancelModal({ reservation, eligibility })
+    } catch (err) {
+      setCancelError(err.message)
+    } finally {
+      setCancellingId(null)
+    }
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelModal) return
+    setCancellingId(cancelModal.reservation.id)
+    setCancelError(null)
+    try {
+      await cancelReservationWithRefund(cancelModal.reservation.id, user.id, false)
+      setCancelSuccess(true)
+      setCancelModal(null)
+      setReservations(prev => prev.filter(r => r.id !== cancelModal.reservation.id))
+      setTimeout(() => setCancelSuccess(false), 3000)
+    } catch (err) {
+      setCancelError(err.message)
+    } finally {
+      setCancellingId(null)
     }
   }
 
@@ -410,9 +468,55 @@ export default function ProfilePage() {
           </div>
         </FadeUp>
 
+        {/* Upcoming Reservations */}
+        <FadeUp delay={200}>
+          <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
+            <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-4">
+              Upcoming Reservations
+            </label>
+            {cancelSuccess && (
+              <Alert type="success" className="mb-3">Reservation cancelled successfully.</Alert>
+            )}
+            {cancelError && (
+              <Alert type="error" className="mb-3">{cancelError}</Alert>
+            )}
+            {resLoading ? (
+              <LoadingSpinner />
+            ) : reservations.length === 0 ? (
+              <p className="font-cormorant italic text-text-soft text-base">No upcoming reservations.</p>
+            ) : (
+              <div className="space-y-3">
+                {reservations.map(r => {
+                  const tableInfo = r.seats ? getTableForSeat(r.seats.seat_number) : null
+                  return (
+                    <div key={r.id} className="flex items-center justify-between gap-4 py-2 border-b border-navy/5 last:border-0">
+                      <div>
+                        <p className="font-playfair text-navy text-sm">
+                          {formatSessionDate(r.sessions?.date)}
+                        </p>
+                        <p className="font-sans text-xs text-text-soft mt-0.5">
+                          {formatTime(r.sessions?.start_time)}
+                          {tableInfo ? ` · ${tableInfo.tableName} · Seat ${r.seats.seat_number}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleCancelClick(r)}
+                        disabled={cancellingId === r.id}
+                        className="font-sans text-xs text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
+                      >
+                        {cancellingId === r.id ? 'Checking…' : 'Cancel'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </FadeUp>
+
         {/* Buddy Passes — dragon_pass eligible */}
         {isBuddyPassEligible(membershipType) && (
-          <FadeUp delay={200}>
+          <FadeUp delay={225}>
             <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
               {passLoading ? (
                 <div className="flex justify-center py-4"><LoadingSpinner /></div>
@@ -674,6 +778,49 @@ export default function ProfilePage() {
                 </div>
               )
             })()}
+          </div>
+        </div>
+      )}
+      {cancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-navy/60 backdrop-blur-sm" onClick={() => setCancelModal(null)} />
+          <div className="relative bg-warm-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <h2 className="font-playfair text-navy text-2xl">Cancel Reservation</h2>
+            <p className="font-cormorant italic text-text-mid text-base">
+              {formatSessionDate(cancelModal.reservation.sessions?.date)} at {formatTime(cancelModal.reservation.sessions?.start_time)}
+            </p>
+            {cancelModal.eligibility?.refundable ? (
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <p className="font-sans text-sm text-green-700 font-medium">
+                  You'll receive a full refund of ${((cancelModal.eligibility.refund_amount ?? 0) / 100).toFixed(2)}.
+                </p>
+              </div>
+            ) : cancelModal.eligibility?.within_window ? (
+              <div className="bg-gold-light border border-gold/40 rounded-xl px-4 py-3">
+                <p className="font-sans text-sm text-navy font-medium">No refund — within 12-hour window.</p>
+                <p className="font-cormorant italic text-text-mid text-sm mt-1">Your seat will be released.</p>
+              </div>
+            ) : (
+              <div className="bg-sky-light border border-sky/30 rounded-xl px-4 py-3">
+                <p className="font-sans text-sm text-navy">Your seat will be released. No payment was taken.</p>
+              </div>
+            )}
+            {cancelError && <Alert type="error">{cancelError}</Alert>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelModal(null)}
+                className="flex-1 py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy text-navy hover:bg-sky-pale transition-all"
+              >
+                Keep Reservation
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={!!cancellingId}
+                className="flex-1 py-3 rounded-full font-sans text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all disabled:opacity-50"
+              >
+                {cancellingId ? 'Cancelling…' : 'Confirm Cancel'}
+              </button>
+            </div>
           </div>
         </div>
       )}

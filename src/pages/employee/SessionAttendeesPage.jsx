@@ -18,7 +18,7 @@ import {
   getMembershipBadgeClasses,
 } from '../../lib/businessRules.js'
 import { supabase } from '../../services/supabase.js'
-import { checkInReservation } from '../../services/reservationService.js'
+import { checkInReservation, cancelReservationWithRefund } from '../../services/reservationService.js'
 import {
   getWeeklyCheckInCountsBatch,
 } from '../../services/attendanceService.js'
@@ -161,6 +161,8 @@ export default function SessionAttendeesPage() {
   const [lastUpdated, setLastUpdated]           = useState(Date.now())
   const [timeSince, setTimeSince]               = useState('just now')
   const [openMenuId, setOpenMenuId]             = useState(null)
+  const [cancellingId, setCancellingId]         = useState(null)
+  const [cancelError,  setCancelError]          = useState(null)
 
   // ── Computed stats ─────────────────────────────────────────────────────────
   const checkedInCount = reservations.filter(r => r.status === 'checked_in' || r.status === 'walk_in').length
@@ -332,6 +334,21 @@ export default function SessionAttendeesPage() {
       setLastUpdated(Date.now())
     } catch (err) {
       console.error('[SessionAttendees] waive-fee failed:', err.message)
+    }
+  }
+
+  async function handleEmployeeCancel(reservation) {
+    if (!window.confirm(`Cancel reservation for ${reservation.profiles?.full_name ?? 'this member'}? This cannot be undone.`)) return
+    setCancellingId(reservation.id)
+    setCancelError(null)
+    try {
+      await cancelReservationWithRefund(reservation.id, user.id, true)
+      refresh()
+      setLastUpdated(Date.now())
+    } catch (err) {
+      setCancelError(err.message)
+    } finally {
+      setCancellingId(null)
     }
   }
 
@@ -509,6 +526,7 @@ export default function SessionAttendeesPage() {
           />
 
           {attendanceError && <Alert type="error">{attendanceError}</Alert>}
+          {cancelError && <Alert type="error">{cancelError}</Alert>}
 
           {/* Attendee list */}
           {resLoading ? (
@@ -593,6 +611,13 @@ export default function SessionAttendeesPage() {
                             className="px-3 py-1.5 rounded-full font-sans text-xs font-medium border-[1.5px] border-red-300 text-red-600 hover:bg-red-50 transition-all disabled:opacity-50"
                           >
                             No Show
+                          </button>
+                          <button
+                            onClick={() => handleEmployeeCancel(r)}
+                            disabled={cancellingId === r.id || processing}
+                            className="px-3 py-1.5 rounded-full font-sans text-xs font-medium border-[1.5px] border-red-300 text-red-600 hover:bg-red-50 transition-all disabled:opacity-50"
+                          >
+                            {cancellingId === r.id ? '…' : 'Cancel'}
                           </button>
                           <button
                             onClick={() => handleAttendeeCheckin(r)}
