@@ -31,6 +31,9 @@ export async function createGuestReservation(
 
   if (error) {
     if (error.code === '23505') throw new Error('That seat was just taken. Please choose another.')
+    if (error.message?.includes('policy') || error.message?.includes('permission') || error.message?.includes('violates')) {
+      throw new Error('Guest reservation could not be created. Please try again or contact staff.')
+    }
     throw error
   }
 

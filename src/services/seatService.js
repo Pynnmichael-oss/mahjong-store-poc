@@ -15,5 +15,10 @@ export async function updateSeatStatus(seatId, status) {
     .from('seats')
     .update({ status })
     .eq('id', seatId)
-  if (error) throw error
+  if (error) {
+    if (error.message?.includes('policy') || error.message?.includes('permission')) {
+      throw new Error('This seat is no longer available. Please select another.')
+    }
+    throw error
+  }
 }

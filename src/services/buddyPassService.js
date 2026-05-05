@@ -35,6 +35,11 @@ export async function redeemBuddyPass(code, sessionId, seatId, guestName, guestP
     p_guest_name:  guestName,
     p_guest_phone: guestPhone,
   })
-  if (error) throw error
+  if (error) {
+    if (error.message?.includes('policy') || error.message?.includes('violates')) {
+      throw new Error('This buddy pass could not be redeemed. Please check the code and try again.')
+    }
+    throw error
+  }
   return { reservation: data }
 }

@@ -340,6 +340,11 @@ export default function ReservePage() {
               profile={profile}
               onPaymentComplete={isAddingSeats ? doAddSeatsWithPayment : doReserveWithPayment}
               onCancel={() => { setShowPaymentGate(false); setError(null) }}
+              onPaymentFailed={() => {
+                refreshSeats()
+                setSelectedSeats([])
+                setShowPaymentGate(false)
+              }}
               skipDuplicateCheck={isAddingSeats}
               overrideTotalCents={isAddingSeats ? selectedSeats.length * GUEST_SEAT_RATE_CENTS : undefined}
             />

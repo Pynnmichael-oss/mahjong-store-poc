@@ -5,7 +5,7 @@ import { getSavedCard, saveCard, chargeCardOnFile } from '../../services/cardSer
 import { getMembershipConfig, getMembershipLabel, getTableForSeat, hasWeeklyLimit } from '../../lib/businessRules.js'
 import { calculateBookingCost } from '../../lib/calculateBookingCost.js'
 import Alert from './Alert.jsx'
-import { formatTime, getWeekBoundaries } from '../../lib/dateUtils.js'
+import { formatTime } from '../../lib/dateUtils.js'
 
 const APP_ID      = import.meta.env.VITE_SQUARE_APP_ID
 const LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID
@@ -20,7 +20,12 @@ const LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID
  *   onPaymentComplete  {fn}        — called with paymentId (string) or null (no payment needed)
  *   onCancel           {fn}        — called if user cancels
  */
-export default function SessionPaymentGate({ session, selectedSeats = [], profile, onPaymentComplete, onCancel, skipDuplicateCheck = false, overrideTotalCents }) {
+export default function SessionPaymentGate({
+  session, selectedSeats = [], profile,
+  onPaymentComplete, onCancel,
+  onPaymentFailed,   // NEW — called when charge fails so parent can release seats
+  skipDuplicateCheck = false, overrideTotalCents
+}) {
   const { user } = useAuth()
 
   const [checking,          setChecking]          = useState(true)
@@ -32,7 +37,8 @@ export default function SessionPaymentGate({ session, selectedSeats = [], profil
   const [alreadyBooked,      setAlreadyBooked]      = useState(false)
   const [newCardInfo,        setNewCardInfo]         = useState(null)
 
-  const cardRef     = useRef(null)
+  const cardRef       = useRef(null)
+  const submittingRef = useRef(false)
   const [cardReady, setCardReady] = useState(false)
   const [cardError, setCardError] = useState(null)
 
@@ -108,16 +114,29 @@ export default function SessionPaymentGate({ session, selectedSeats = [], profil
   }
 
   async function fetchWeeklyCount() {
-    const { weekStart, weekEnd } = getWeekBoundaries()
-    const { count } = await supabase
+    const sessionDate = session?.date
+    if (!sessionDate) return 0
+    // Build Mon–Sun boundaries for the session's week
+    const date = new Date(sessionDate + 'T12:00:00')
+    const day = date.getDay()
+    const diffToMonday = day === 0 ? -6 : 1 - day
+    const monday = new Date(date)
+    monday.setDate(date.getDate() + diffToMonday)
+    monday.setHours(0, 0, 0, 0)
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    const { data } = await supabase
       .from('reservations')
-      .select('*', { count: 'exact', head: true })
+      .select('sessions!inner(date)')
       .eq('user_id', profile.id)
       .eq('is_primary_seat', true)
       .in('status', ['confirmed', 'walk_in', 'checked_in'])
-      .gte('created_at', weekStart.toISOString())
-      .lte('created_at', weekEnd.toISOString())
-    return count ?? 0
+      .gte('sessions.date', monday.toISOString().split('T')[0])
+      .lte('sessions.date', sunday.toISOString().split('T')[0])
+
+    return data?.length ?? 0
   }
 
   // ── Square card field ─────────────────────────────────────────────────────
@@ -157,6 +176,8 @@ export default function SessionPaymentGate({ session, selectedSeats = [], profil
 
   // ── Charge saved card ─────────────────────────────────────────────────────
   async function handleSavedCardConfirm() {
+    if (submittingRef.current) return
+    submittingRef.current = true
     setSubmitting(true)
     setError(null)
     try {
@@ -173,7 +194,9 @@ export default function SessionPaymentGate({ session, selectedSeats = [], profil
       onPaymentComplete(paymentId)
     } catch (err) {
       setError(err.message ?? 'Payment failed')
+      if (onPaymentFailed) onPaymentFailed()
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }
@@ -182,6 +205,8 @@ export default function SessionPaymentGate({ session, selectedSeats = [], profil
   async function handleNewCardSubmit(e) {
     e.preventDefault()
     if (!cardRef.current || !cardReady || submitting) return
+    if (submittingRef.current) return
+    submittingRef.current = true
     setSubmitting(true)
     setError(null)
     try {
@@ -212,7 +237,11 @@ export default function SessionPaymentGate({ session, selectedSeats = [], profil
       onPaymentComplete(paymentId)
     } catch (err) {
       setError(err.message ?? 'Payment failed')
+      setCardReady(false)
+      setTimeout(() => setCardReady(true), 100)
+      if (onPaymentFailed) onPaymentFailed()
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }

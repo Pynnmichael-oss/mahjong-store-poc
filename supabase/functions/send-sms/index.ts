@@ -1,5 +1,27 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
+async function verifyAuth(req: Request): Promise<{ userId: string; role: string }> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new Error('Missing or invalid Authorization header')
+  }
+  const jwt = authHeader.replace('Bearer ', '')
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+  const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } }
+  })
+  const { data: { user }, error } = await authClient.auth.getUser()
+  if (error || !user) throw new Error('Unauthorized')
+  const { data: profile } = await authClient
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  return { userId: user.id, role: profile?.role ?? 'customer' }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -8,6 +30,15 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    await verifyAuth(req)
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   try {

@@ -1,22 +1,27 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Required Supabase SQL before deploying:
-//
-// CREATE TABLE IF NOT EXISTS payments (
-//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-//   user_id UUID REFERENCES auth.users(id),
-//   reservation_id UUID REFERENCES reservations(id),
-//   square_payment_id TEXT UNIQUE,
-//   amount_cents INTEGER NOT NULL,
-//   currency TEXT NOT NULL DEFAULT 'USD',
-//   description TEXT,
-//   membership_type TEXT,
-//   status TEXT NOT NULL DEFAULT 'completed',
-//   created_at TIMESTAMPTZ DEFAULT now()
-// );
-// ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "employees can view payments" ON payments FOR SELECT USING (true);
+async function verifyAuth(req: Request): Promise<{ userId: string; role: string }> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new Error('Missing or invalid Authorization header')
+  }
+  const jwt = authHeader.replace('Bearer ', '')
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+  const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } }
+  })
+  const { data: { user }, error } = await authClient.auth.getUser()
+  if (error || !user) throw new Error('Unauthorized')
+  const { data: profile } = await authClient
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  return { userId: user.id, role: profile?.role ?? 'customer' }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,6 +39,17 @@ serve(async (req) => {
       status: 204,
       headers: corsHeaders,
     })
+  }
+
+  let authedUserId: string
+  try {
+    const auth = await verifyAuth(req)
+    authedUserId = auth.userId
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   // Only allow POST
@@ -124,7 +140,7 @@ serve(async (req) => {
       const { data, error: dbError } = await db
         .from('payments')
         .insert({
-          user_id: userId ?? null,
+          user_id: authedUserId,
           reference_id: reservationId ?? null,
           square_payment_id: squarePaymentId,
           square_order_id: squareData.payment?.order_id ?? null,
@@ -150,7 +166,7 @@ serve(async (req) => {
     }
 
     // Update membership_type and membership_paid_until on the user's profile
-    if (userId && membershipType) {
+    if (authedUserId && membershipType) {
       const paidUntil = new Date()
       paidUntil.setMonth(paidUntil.getMonth() + 1)
 
@@ -162,7 +178,7 @@ serve(async (req) => {
           membership_type: membershipType,
           membership_paid_until: paidUntil.toISOString(),
         })
-        .eq('id', userId)
+        .eq('id', authedUserId)
 
       if (profileError) {
         console.error('[square-payment] profile update failed:', profileError.message)

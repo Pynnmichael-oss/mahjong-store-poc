@@ -52,41 +52,30 @@ export async function createReservation(payload, paymentId = null) {
 export async function createMultiSeatReservation({
   userId, sessionId, selectedSeats, membershipType, isFlaggedOverage, paymentId = null,
 }) {
-  const paymentStatus = paymentId ? 'paid' : 'not_required'
-  const groupId = selectedSeats.length > 1 ? crypto.randomUUID() : null
-  const now = new Date().toISOString()
+  const seatIds = selectedSeats.map(s => s.id)
 
-  const rows = selectedSeats.map((seat, index) => ({
-    user_id:                    userId,
-    session_id:                 sessionId,
-    seat_id:                    seat.id,
-    status:                     'confirmed',
-    payment_status:             paymentStatus,
-    membership_type_at_booking: membershipType,
-    is_flagged_overage:         isFlaggedOverage && index === 0,
-    is_walk_in:                 false,
-    is_primary_seat:            index === 0,
-    guest_count:                index === 0 ? selectedSeats.length - 1 : 0,
-    group_reservation_id:       groupId,
-    reserved_at:                now,
-  }))
-
-  const { data, error } = await supabase
-    .from('reservations')
-    .insert(rows)
-    .select()
+  const { data, error } = await supabase.rpc('reserve_seats', {
+    p_user_id:    userId,
+    p_session_id: sessionId,
+    p_seat_ids:   seatIds,
+    p_membership: membershipType ?? 'four_winds_member',
+    p_is_overage: isFlaggedOverage ?? false,
+    p_payment_id: paymentId ?? null,
+  })
 
   if (error) {
+    if (error.message?.includes('no longer available')) {
+      throw new Error('One or more seats were just taken. Please select different seats.')
+    }
     if (error.code === '23505') {
-      throw new Error('You already have a reservation for this session.')
+      throw new Error('One or more seats were just taken. Please select different seats.')
     }
     throw error
   }
 
-  await Promise.all(rows.map(r => updateSeatStatus(r.seat_id, 'reserved')))
-
-  if (paymentId) {
-    const primary = data?.find(r => r.is_primary_seat)
+  // Link payment record to primary reservation
+  if (paymentId && data?.length) {
+    const primary = data.find(r => r.is_primary_seat)
     if (primary) {
       const { error: payErr } = await supabase
         .from('payments')

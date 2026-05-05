@@ -1,6 +1,27 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+async function verifyAuth(req: Request): Promise<{ userId: string; role: string }> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new Error('Missing or invalid Authorization header')
+  }
+  const jwt = authHeader.replace('Bearer ', '')
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } }
+  })
+  const { data: { user }, error } = await authClient.auth.getUser()
+  if (error || !user) throw new Error('Unauthorized')
+  const { data: profile } = await authClient
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  return { userId: user.id, role: profile?.role ?? 'customer' }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -11,6 +32,17 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders })
+  }
+
+  let authedUserId: string
+  try {
+    const auth = await verifyAuth(req)
+    authedUserId = auth.userId
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   const supabase = createClient(
@@ -35,7 +67,7 @@ serve(async (req) => {
   const { data: profile } = await supabase
     .from('profiles')
     .select('square_customer_id')
-    .eq('id', userId)
+    .eq('id', authedUserId)
     .single()
 
   let squareCustomerId = profile?.square_customer_id
@@ -72,7 +104,7 @@ serve(async (req) => {
     await supabase
       .from('profiles')
       .update({ square_customer_id: squareCustomerId })
-      .eq('id', userId)
+      .eq('id', authedUserId)
   }
 
   // 2. Save card to customer
@@ -107,7 +139,7 @@ serve(async (req) => {
   await supabase
     .from('profiles')
     .update({ square_card_id: squareCardId })
-    .eq('id', userId)
+    .eq('id', authedUserId)
 
   console.log('[save-card] card saved for user', userId, '| card:', squareCardId)
 
