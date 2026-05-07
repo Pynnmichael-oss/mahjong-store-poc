@@ -89,7 +89,9 @@ export default function ReservePage() {
 
   async function doReserveWithPayment(paymentId) {
     setError(null)
+    console.log('[ReservePage] doReserveWithPayment called — paymentId:', paymentId)
     try {
+      console.log('[ReservePage] calling createMultiSeatReservation')
       await createMultiSeatReservation({
         userId:           user.id,
         sessionId,
@@ -99,9 +101,11 @@ export default function ReservePage() {
         paymentId,
       })
       setSuccess(true)
+      console.log('[ReservePage] success set to true')
       setTimeout(() => navigate('/dashboard'), 2500)
     } catch (err) {
       setError(err.message)
+      console.error('[ReservePage] reservation failed after payment:', err.message)
       refreshSeats()
       setSelectedSeats([])
       setShowPaymentGate(false)

@@ -43,11 +43,16 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
   - `four_winds_member` — Free account, $15 per session
 - `walk_in` membership type is **retired** — migrated to `four_winds_member`. `walk_in` still exists as a reservation STATUS (unchanged).
 - `getMembershipConfig(unknownType)` falls back to `four_winds_member`
-- Weekly limit is Mon–Sun America/Chicago timezone; `getWeekBoundaries()` computes it
+- Weekly limit is Mon–Sun anchored to the **session's date**, not the current week. `getWeekBoundariesForDate(dateStr)` in `src/lib/dateUtils.js` computes Mon–Sun from a `YYYY-MM-DD` string; `getWeekBoundaries()` (current week) is still exported for other uses
+- `countPlaysForSessionWeek(reservations, sessionDate)` — filters `is_primary_seat: true` reservations and counts those falling in the session's week. Pass `sessionDate` (YYYY-MM-DD) when booking; omit to fall back to current week
 - Overage flag: `shouldFlagOverage(membershipType, weeklyCount)` — returns true when weekly count ≥ weekly limit
 - Check-in window: 15 minutes from session start time
 - Seats are grouped into 8 tables (Table 1–8), 4 seats each — `getTableForSeat(seatNumber)` maps seat numbers to tables
 - Use `getMembershipConfig(type)` for all tier lookups; `MEMBERSHIP_TIERS` is a backward-compat alias
+
+**Booking** (`src/services/reservationService.js`):
+- Multi-seat booking uses the `reserve_seats` Supabase RPC (not direct inserts) — call it instead of `supabase.from('reservations').insert(...)` for new bookings
+- Active reservation statuses for duplicate-check purposes: `['confirmed', 'walk_in', 'checked_in']` — `cancelled` is always excluded
 
 **Buddy passes** (`src/services/buddyPassService.js`):
 - Dragon Pass members get 2 guest passes/month, stored in `buddy_passes` table
@@ -67,21 +72,33 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - Used for walk-in fees and overage charges; passes `reservationId` or `membershipType` for tracking
 
 **Supabase Edge Functions** (`supabase/functions/`):
+- All four functions use a shared `verifyAuth(req)` helper that validates the Bearer JWT, returns `{ userId, role }`, and throws on failure — the caller returns a 401.
 - `square-payment/` — processes Square card charges (one-time or card-on-file via `squareCustomerId`/`cardId`)
 - `save-card/` — tokenises and vaults a Square card; stores `square_customer_id` + `square_card_id` on `profiles`
 - `send-sms/` — sends SMS confirmations to guests
+- `square-refund/` — issues a Square refund and updates the `payments` row (`status: 'refunded'`, `square_refund_id`, `refunded_at`, `refunded_by`)
 
 **Saved-card flow** (`src/services/cardService.js`):
 - `getSavedCard(userId)` — reads `square_customer_id` / `square_card_id` from `profiles`
 - `saveCard({ userId, token, email, displayName })` → invokes `save-card` Edge Function → returns `{ squareCardId, squareCustomerId, cardLast4, cardBrand }`
 - `chargeCardOnFile({ userId, squareCustomerId, cardId, amountCents, … })` → invokes `square-payment` with stored card credentials
-- `SessionPaymentGate` (`src/components/ui/SessionPaymentGate.jsx`) orchestrates the full reservation-time payment UX: checks if payment is required, shows saved card or Square card entry form, then calls `onPaymentComplete(paymentId | null)`
+- `SessionPaymentGate` (`src/components/ui/SessionPaymentGate.jsx`) orchestrates the full reservation-time payment UX: checks if payment is required, shows saved card or Square card entry form, then calls `onPaymentComplete(paymentId | null)`. Accepts `onPaymentFailed` prop — called on any payment error so the caller can release seats and reset UI. Uses `useRef` (not `useState`) for double-tap guard to avoid re-render races.
+
+**Cancellation and refund flow:**
+- `checkCancellationEligibility(reservationId, userId)` in `cancellationService.js` calls the `get_cancellation_eligibility` Supabase RPC — returns `{ eligible, refundable, refund_amount, square_payment_id, hours_until, … }`
+- `cancelReservation({ reservationId, groupId, cancelWholeGroup, userId })` in `cancellationService.js` — cancels reservation rows and frees seats
+- `processRefund({ squarePaymentId, amountCents })` in `cancellationService.js` — invokes the `square-refund` Edge Function, forwarding the user's Supabase auth token
+- `CancelReservationModal` (`src/components/ui/CancelReservationModal.jsx`) — three display states: within 12-hour window (no refund), outside window with free booking, outside window with paid refund. Group-booking toggle shown for group reservations outside the 12-hour window.
+- Cancellation window: **12 hours** before session start. Cancellations within this window are not refundable.
+- The `get_cancellation_eligibility` and `cancel_reservation_with_refund` RPCs must exist in Supabase (SQL run manually — see comment block in `cancellationService.js`).
+- The `payments` table requires three columns added via SQL: `square_refund_id TEXT`, `refunded_at TIMESTAMPTZ`, `refunded_by UUID REFERENCES auth.users(id)`.
 
 **Database schema (key tables):**
 - `profiles` — extends `auth.users`; `role`, `membership_type`, `is_active`, `member_number`
 - `sessions` — `date`, `start_time`, `end_time`, `total_seats`, `status`
 - `seats` — `session_id`, `seat_number`, `status` (available/reserved/occupied)
-- `reservations` — `user_id`, `session_id`, `seat_id`, `status` (confirmed/checked_in/no_show/cancelled/walk_in), `is_flagged_overage`, `is_walk_in`, `is_primary_seat` (true for the member's own seat, false for extra/guest seats), `membership_type_at_booking`, `override_by`, `override_at`
+- `reservations` — `user_id`, `session_id`, `seat_id`, `status` (confirmed/checked_in/no_show/cancelled/walk_in), `is_flagged_overage`, `is_walk_in`, `is_primary_seat` (true for the member's own seat, false for extra/guest seats), `membership_type_at_booking`, `override_by`, `override_at`, `group_reservation_id`
+- `payments` — `user_id`, `amount_cents`, `status` (pending/completed/refunded), `square_payment_id`, `square_refund_id`, `refunded_at`, `refunded_by`, `reference_id` (reservation UUID)
 - `buddy_passes` — `owner_id`, `code`, `used_count`, `max_uses`, month-scoped
 - `events` / `event_rsvps` — event listings and RSVP tracking
 

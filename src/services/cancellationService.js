@@ -107,8 +107,12 @@ export async function cancelReservation({
 }
 
 export async function processRefund({ squarePaymentId, amountCents, reason = 'Customer cancellation' }) {
+  const { data: { session: authSession } } = await supabase.auth.getSession()
   const { data, error } = await supabase.functions.invoke('square-refund', {
     body: { squarePaymentId, amountCents, reason },
+    headers: authSession?.access_token
+      ? { Authorization: `Bearer ${authSession.access_token}` }
+      : {},
   })
   if (error) throw new Error(error.message)
   if (!data?.success) throw new Error(data?.error ?? 'Refund failed')
