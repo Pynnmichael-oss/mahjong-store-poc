@@ -224,7 +224,6 @@ export default function SessionPaymentGate({
       setNewCardInfo({ cardLast4: saved.cardLast4, cardBrand: saved.cardBrand })
 
       const desc = `Four Winds session fee — ${selectedSeats.length} seat${selectedSeats.length !== 1 ? 's' : ''} — ${session.date}`
-      console.log('[PaymentGate] about to chargeCardOnFile — saved:', saved)
       const { paymentId } = await chargeCardOnFile({
         userId:           profile.id,
         squareCustomerId: saved.squareCustomerId,
@@ -238,7 +237,6 @@ export default function SessionPaymentGate({
       onPaymentComplete(paymentId)
     } catch (err) {
       setError(err.message ?? 'Payment failed')
-      console.error('[PaymentGate] handleNewCardSubmit error:', err.message, err)
       setCardReady(false)
       setTimeout(() => setCardReady(true), 100)
       if (onPaymentFailed) onPaymentFailed()
