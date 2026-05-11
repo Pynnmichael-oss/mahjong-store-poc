@@ -294,7 +294,7 @@ export default function AboutPage() {
             </h2>
             <div className="space-y-5 font-cormorant text-text-mid text-xl leading-[1.7]">
               <p>
-                Four Winds is Tulsa's first dedicated mahjong club and event space.
+                Four Winds is Tulsa's premier dedicated mahjong club and event space.
                 Whether you're a seasoned player or picking up tiles for the first time,
                 there's a seat at the table for you.
               </p>
