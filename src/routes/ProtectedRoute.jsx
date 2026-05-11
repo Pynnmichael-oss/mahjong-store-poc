@@ -18,8 +18,10 @@ export function EmployeeRoute({ children }) {
 }
 
 export function PublicOnlyRoute({ children }) {
-  const { user, isEmployee, loading } = useAuth()
+  const { user, profile, isEmployee, loading } = useAuth()
   if (loading) return <div className="min-h-screen bg-sky flex items-center justify-center"><LoadingSpinner /></div>
+  // Wait for profile to load before redirecting — prevents employee landing on /dashboard
+  if (user && profile === null) return <div className="min-h-screen bg-sky flex items-center justify-center"><LoadingSpinner /></div>
   if (user) return <Navigate to={isEmployee ? '/employee' : '/dashboard'} replace />
   return children
 }

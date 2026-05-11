@@ -7,7 +7,7 @@ import { getMembershipLabel, getMembershipDescription, getWeeklyLimit } from '..
 import FadeUp from '../ui/FadeUp.jsx'
 
 export default function CustomerHeader() {
-  const { user, profile } = useAuth()
+  const { user, profile, loading } = useAuth()
   const { reservations } = useUserReservations(user?.id)
   const { checkedInCount } = useWeeklyLimit(reservations, profile?.membership_type)
   const { weeklyCount } = useWeeklySessionCount()
@@ -36,10 +36,14 @@ export default function CustomerHeader() {
         <FadeUp>
           <p className="font-sans text-[11px] uppercase tracking-[4px] text-sky-mid mb-1">Welcome back</p>
           <h1 className="font-playfair text-sky text-4xl font-bold">
-            {profile?.full_name?.split(' ')[0] ?? 'Member'}
+            {loading || !profile
+              ? <span className="inline-block w-32 h-9 bg-sky/20 rounded-lg animate-pulse" />
+              : profile.full_name?.split(' ')[0] ?? 'Member'}
           </h1>
           <p className="font-cormorant italic text-sky/60 text-lg mt-1">
-            {getMembershipLabel(membershipType)} — {getMembershipDescription(membershipType)}
+            {loading || !profile
+              ? <span className="inline-block w-48 h-5 bg-sky/20 rounded-lg animate-pulse" />
+              : `${getMembershipLabel(membershipType)} — ${getMembershipDescription(membershipType)}`}
           </p>
         </FadeUp>
 
