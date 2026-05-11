@@ -27,6 +27,12 @@ VITE_SQUARE_LOCATION_ID=your-square-location-id
 
 **Stack:** React 18 + Vite + Tailwind CSS v3 + Supabase (auth + database). No TypeScript — plain JSX. Deployed via GitHub Pages (HashRouter — required, do not change to BrowserRouter).
 
+**Routes** (`src/routes/AppRouter.jsx`):
+- Public: `/` (AboutPage), `/kiosk` (no auth guard — intentional)
+- `PublicOnlyRoute`: `/login`, `/signup`
+- `ProtectedRoute` (any logged-in user): `/dashboard`, `/sessions`, `/sessions/:id/reserve`, `/events`, `/my-qr`, `/history`, `/profile`
+- `EmployeeRoute`: `/employee`, `/employee/sessions`, `/employee/sessions/:id`, `/employee/events`, `/employee/members`, `/employee/reports`
+
 **Two user roles** controlled by `profiles.role`:
 - `customer` — books seats, views QR code, RSVPs to events
 - `employee` — manages sessions, checks in attendees, manages events/members
@@ -34,6 +40,8 @@ VITE_SQUARE_LOCATION_ID=your-square-location-id
 Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches the user's `profiles` row on login and exposes `{ user, profile, isEmployee, loading, signOut }`. Route guards (`ProtectedRoute`, `EmployeeRoute`, `PublicOnlyRoute`) live in `src/routes/ProtectedRoute.jsx`.
 
 **Data layer pattern:** thin service functions in `src/services/` make direct Supabase queries; custom hooks in `src/hooks/` wrap them with `useState`/`useEffect` and expose `{ data, loading, error, refresh }`. Pages consume hooks, not services directly.
+
+**Components** in `src/components/` are organized by domain: `seats/` (SeatButton, SeatMap, TableDisplay), `sessions/` (SessionCard, SessionList), `employee/` (AttendeeRow, AttendeeTable, WalkInForm, SessionCreateModal, etc.), `reservations/` (OverageFlagBanner, ReservationSummary, ReservationStatusBadge), `events/` (EventCard, EventForm, EventList, EventRSVPButton), `checkin/` (CameraScanner, QRCodeDisplay, QRScanInput), `ui/` (shared primitives), `layout/` (Header, CustomerHeader, PageWrapper, FloatingTiles, WaveDivider).
 
 **Business rules** (`src/lib/businessRules.js`):
 - **Membership tiers** (canonical keys in `MEMBERSHIP_CONFIG`):
@@ -46,6 +54,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - Weekly limit is Mon–Sun anchored to the **session's date**, not the current week. `getWeekBoundariesForDate(dateStr)` in `src/lib/dateUtils.js` computes Mon–Sun from a `YYYY-MM-DD` string; `getWeekBoundaries()` (current week) is still exported for other uses
 - `countPlaysForSessionWeek(reservations, sessionDate)` — filters `is_primary_seat: true` reservations and counts those falling in the session's week. Pass `sessionDate` (YYYY-MM-DD) when booking; omit to fall back to current week
 - Overage flag: `shouldFlagOverage(membershipType, weeklyCount)` — returns true when weekly count ≥ weekly limit
+- `useWeeklyLimit(reservations, membershipType, sessionDate?)` (`src/hooks/useWeeklyLimit.js`) — convenience hook that wraps both of the above; returns `{ checkedInCount, isOverLimit }`
 - Check-in window: 15 minutes from session start time
 - Seats are grouped into 8 tables (Table 1–8), 4 seats each — `getTableForSeat(seatNumber)` maps seat numbers to tables
 - Use `getMembershipConfig(type)` for all tier lookups; `MEMBERSHIP_TIERS` is a backward-compat alias
@@ -57,6 +66,10 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 **Buddy passes** (`src/services/buddyPassService.js`):
 - Dragon Pass members get 2 guest passes/month, stored in `buddy_passes` table
 - Flow: `getOrCreateBuddyPass` (RPC) → member shares 6-char code → guest uses `checkBuddyPassCode` to validate → `redeemBuddyPass` (RPC) books seat and decrements `used_count`
+
+**Check-in and walk-in** (`src/services/attendanceService.js`):
+- `processQRCheckin(userId, sessionId)` — employee-side QR scan flow: validates reservation, enforces 15-min check-in window, calls `checkInReservation`
+- `addWalkIn({ userId, sessionId, seatId, membershipType, employeeId })` — creates a `walk_in` status reservation directly (bypasses `reserve_seats` RPC); used after walk-in payment is collected
 
 **Guest reservations** (`src/services/guestService.js`):
 - Employees can book non-member guests via `create_guest_reservation` RPC

@@ -24,10 +24,27 @@ export async function cancelSession(sessionId) {
 // Accepts bare time strings ("10:00:00") and combines with date for TIMESTAMPTZ params.
 // Returns the new session UUID, or null if a session for that date+time already exists.
 export async function createSessionWithSeats(date, startTime, endTime) {
+  // Tag as America/Chicago so Supabase stores the correct UTC offset
+  const toChicago = (dateStr, timeStr) => {
+    const naive = `${dateStr}T${timeStr}`
+    // Create a date as if it's Chicago time by using the offset
+    const d = new Date(naive)
+    // Get Chicago offset in minutes using Intl
+    const chicagoOffset = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      timeZoneName: 'shortOffset',
+    }).formatToParts(d).find(p => p.type === 'timeZoneName')?.value ?? 'GMT-5'
+    const sign  = chicagoOffset.includes('+') ? 1 : -1
+    const parts = chicagoOffset.replace('GMT', '').replace('+', '').replace('-', '').split(':')
+    const offsetMins = sign * (parseInt(parts[0] ?? '5') * 60 + parseInt(parts[1] ?? '0'))
+    const utc = new Date(d.getTime() - offsetMins * 60 * 1000)
+    return utc.toISOString()
+  }
+
   const { data, error } = await supabase.rpc('create_session_with_seats', {
     p_date:       date,
-    p_start_time: `${date}T${startTime}`,
-    p_end_time:   `${date}T${endTime}`,
+    p_start_time: toChicago(date, startTime),
+    p_end_time:   toChicago(date, endTime),
   })
   if (error) throw error
   return data

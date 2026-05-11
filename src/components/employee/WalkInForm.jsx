@@ -39,7 +39,7 @@ export default function WalkInForm({ sessionId, seats, onSubmit, onCancel, disab
     onSubmit({ userId: selectedUser, seatId: selectedSeat.id, membershipType: user?.membership_type ?? 'four_winds_member' })
   }
 
-  const availableSeats = seats.filter(s => s.status === 'available')
+  const availableSeats = seats // pass all seats so SeatMap renders layout correctly
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -60,7 +60,13 @@ export default function WalkInForm({ sessionId, seats, onSubmit, onCancel, disab
       </div>
       <div>
         <label className={labelCls}>Select Seat</label>
-        <SeatMap seats={availableSeats} selectedSeat={selectedSeat} onSelect={setSelectedSeat} />
+        <div className="overflow-y-auto max-h-[340px] -mx-1 px-1">
+          <SeatMap
+            seats={seats}
+            selectedSeats={selectedSeat ? [selectedSeat] : []}
+            onSelect={seat => seat.status === 'available' ? setSelectedSeat(seat) : null}
+          />
+        </div>
         {selectedSeat && (
           <p className="font-sans text-sm text-sky-mid mt-2 text-center">Selected: Seat #{selectedSeat.seat_number}</p>
         )}
