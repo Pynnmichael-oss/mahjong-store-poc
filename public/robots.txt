@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /employee
+Disallow: /kiosk
+
+Sitemap: https://fourwindstulsa.com/sitemap.xml
