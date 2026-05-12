@@ -333,8 +333,9 @@ export default function SignupPage() {
       })
 
       // 7. Sync profile state in AuthContext
+      // Wait for Edge Function to finish writing membership_type to profile
+      await new Promise(r => setTimeout(r, 2000))
       await refreshProfile()
-
       navigate('/sessions', { replace: true })
     } catch (err) {
       setError(err?.message ?? 'Something went wrong. Please try again.')
