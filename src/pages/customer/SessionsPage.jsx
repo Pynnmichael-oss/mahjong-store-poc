@@ -218,7 +218,13 @@ export default function SessionsPage() {
           <FadeUp>
             {loading && <LoadingSpinner />}
             {error && <Alert type="error">{error.message}</Alert>}
-            {!loading && !error && <SessionList sessions={filtered} showReserveButton />}
+            {!loading && !error && (
+              <SessionList
+                sessions={filtered}
+                showReserveButton
+                bookedSessionIds={upcomingBookings.map(b => b.sessionObj?.id).filter(Boolean)}
+              />
+            )}
           </FadeUp>
         </div>
       </div>

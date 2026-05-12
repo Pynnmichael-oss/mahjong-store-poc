@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 
-export default function SessionCard({ session, showReserveButton = false }) {
+export default function SessionCard({ session, showReserveButton = false, isBooked = false }) {
   const today = new Date().toISOString().split('T')[0]
   const isToday = session.date === today
 
@@ -35,18 +35,16 @@ export default function SessionCard({ session, showReserveButton = false }) {
         </div>
 
         {showReserveButton && (
-          isFull ? (
-            <button
-              disabled
-              className="flex-shrink-0 bg-navy/20 text-navy/40 font-sans text-sm rounded-full py-2.5 px-4 cursor-not-allowed"
-            >
+          isBooked ? (
+            <span className="flex-shrink-0 inline-flex items-center px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-sky-light text-sky-mid border border-sky-mid/30">
+              Already booked ✓
+            </span>
+          ) : isFull ? (
+            <button disabled className="flex-shrink-0 bg-navy/20 text-navy/40 font-sans text-sm rounded-full py-2.5 px-4 cursor-not-allowed">
               Session Full
             </button>
           ) : (
-            <Link
-              to={`/sessions/${session.id}/reserve`}
-              className="flex-shrink-0 font-sans text-sm font-medium text-navy hover:text-sky-mid transition-colors"
-            >
+            <Link to={`/sessions/${session.id}/reserve`} className="flex-shrink-0 font-sans text-sm font-medium text-navy hover:text-sky-mid transition-colors">
               Reserve a Seat →
             </Link>
           )
