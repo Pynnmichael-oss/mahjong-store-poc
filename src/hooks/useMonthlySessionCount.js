@@ -20,18 +20,22 @@ export function useWeeklySessionCount() {
 
   async function fetchWeeklyCount() {
     setLoading(true)
+
+    // Scope to the CURRENT calendar week (Mon–Sun)
+    // This hook is used for display only (profile page, header)
+    // It shows how many sessions the member has used THIS week
     const { weekStart, weekEnd } = getWeekBoundaries()
 
-    const { count } = await supabase
+    const { data } = await supabase
       .from('reservations')
-      .select('*', { count: 'exact', head: true })
+      .select('sessions!inner(date)')
       .eq('user_id', profile.id)
       .eq('is_primary_seat', true)
       .in('status', ['confirmed', 'walk_in', 'checked_in'])
-      .gte('created_at', weekStart.toISOString())
-      .lte('created_at', weekEnd.toISOString())
+      .gte('sessions.date', weekStart.toISOString().split('T')[0])
+      .lte('sessions.date', weekEnd.toISOString().split('T')[0])
 
-    setWeeklyCount(count ?? 0)
+    setWeeklyCount(data?.length ?? 0)
     setLoading(false)
   }
 
