@@ -19,10 +19,9 @@ export function calculateBookingCost({ membershipType, seatCount, weeklySessions
     ownSeatCost = SESSION_WALK_IN_RATE_CENTS
   }
 
-  // Guest seats always $15 except dragon_pass (buddy passes are free)
-  const guestSeatCost = membershipType === 'dragon_pass'
-    ? 0
-    : extraSeats * GUEST_SEAT_RATE_CENTS
+  // Guest seats always $15 per extra seat for all membership types
+  // Dragon Pass members use the buddy pass flow for free guests (separate system)
+  const guestSeatCost = extraSeats * GUEST_SEAT_RATE_CENTS
 
   const totalCents = ownSeatCost + guestSeatCost
   const isOverage  = config.weeklyLimit !== null && weeklySessionsUsed >= config.weeklyLimit
