@@ -126,7 +126,7 @@ export default function CancelReservationModal({
         {(() => {
           if (loading || confirmed || !eligibility?.eligible) return null
 
-          const withinWindow  = eligibility.hours_until < 12
+          const withinWindow  = eligibility.hours_until < 24
           const hasPaidBooking = eligibility.refundable === true && eligibility.refund_amount > 0
           const isFreeBooking  = !withinWindow && !hasPaidBooking
 
@@ -155,7 +155,7 @@ export default function CancelReservationModal({
                 <div className="bg-gold-light border border-gold/40 rounded-xl px-4 py-3 flex items-start gap-2">
                   <span className="text-gold mt-0.5 flex-shrink-0">⚠</span>
                   <p className="font-cormorant italic text-navy text-base leading-relaxed">
-                    This session starts in less than 12 hours. Cancellations within the 12-hour window are not refundable.
+                    This session starts in less than 24 hours. Cancellations within the 24-hour window are not refundable.
                   </p>
                 </div>
                 <div className="flex gap-3">

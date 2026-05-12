@@ -797,7 +797,7 @@ export default function ProfilePage() {
               </div>
             ) : cancelModal.eligibility?.within_window ? (
               <div className="bg-gold-light border border-gold/40 rounded-xl px-4 py-3">
-                <p className="font-sans text-sm text-navy font-medium">No refund — within 12-hour window.</p>
+                <p className="font-sans text-sm text-navy font-medium">No refund — within 24-hour window.</p>
                 <p className="font-cormorant italic text-text-mid text-sm mt-1">Your seat will be released.</p>
               </div>
             ) : (
