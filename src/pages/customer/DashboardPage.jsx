@@ -13,9 +13,17 @@ export default function DashboardPage() {
   const { reservations, loading: resLoading } = useUserReservations(user?.id)
 
   const today = new Date().toISOString().split('T')[0]
-  const upcoming = reservations.filter(r =>
-    r.status === 'confirmed' && (r.sessions?.date ?? '') >= today
-  )
+  const upcoming = reservations
+    .filter(r =>
+      r.status === 'confirmed' &&
+      r.is_primary_seat === true &&
+      (r.sessions?.date ?? '') >= today
+    )
+    .sort((a, b) => {
+      const da = a.sessions?.date ?? ''
+      const db = b.sessions?.date ?? ''
+      return da.localeCompare(db)
+    })
   const nextReservation = upcoming[0]
 
   const nextSession = nextReservation?.sessions

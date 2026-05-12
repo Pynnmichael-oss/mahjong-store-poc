@@ -96,8 +96,6 @@ export default function SessionsPage() {
     if (ageMs < 5 * 60 * 1000) {
       setShowWelcome(true)
       sessionStorage.setItem('welcomeShown', 'true')
-      const t = setTimeout(() => setShowWelcome(false), 8000)
-      return () => clearTimeout(t)
     }
   }, [user?.created_at])
 

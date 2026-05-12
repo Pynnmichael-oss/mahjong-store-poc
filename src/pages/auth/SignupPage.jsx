@@ -26,15 +26,14 @@ const PLANS = [
   {
     key: 'flower_pass',
     name: 'Flower Pass',
-    price: '$89.99',
+    price: '$79.99',
     period: '/mo',
-    amountCents: 8999,
+    amountCents: 7999,
     border: 'border-t-4 border-sky-mid',
     selectedBorder: 'border-2 border-sky-mid',
     btn: 'bg-sky-mid text-navy hover:bg-sky',
     benefits: [
       '2 sessions per week',
-      'Own seat free within limit',
       '$15 overage per extra session',
     ],
   },
@@ -49,7 +48,6 @@ const PLANS = [
     btn: 'bg-green-600 text-white hover:bg-green-700',
     benefits: [
       '1 session per week',
-      'Own seat free within limit',
       '$15 overage per extra session',
     ],
   },
