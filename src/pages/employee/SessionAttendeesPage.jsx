@@ -201,6 +201,24 @@ export default function SessionAttendeesPage() {
     }
   }, [activeTab])
 
+  // Aggressive focus recovery for Zebra USB scanner
+  // Scanner acts as HID keyboard — if focus drifts, recapture on any keypress
+  useEffect(() => {
+    if (activeTab !== 'scanner') return
+
+    function handleGlobalKey(e) {
+      if (isAnyModalOpen) return
+      if (scanState === 'loading') return
+      // If the active element is not the scan input, refocus it
+      if (document.activeElement !== scanInputRef.current) {
+        scanInputRef.current?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKey)
+    return () => window.removeEventListener('keydown', handleGlobalKey)
+  }, [activeTab, isAnyModalOpen, scanState])
+
   // ── Scanner helpers ────────────────────────────────────────────────────────
   function clearScanTimer() {
     if (scanTimerRef.current) { clearTimeout(scanTimerRef.current); scanTimerRef.current = null }
@@ -218,11 +236,17 @@ export default function SessionAttendeesPage() {
   }
 
   async function handleScan(rawValue) {
+    console.log('[Scanner] handleScan called — raw:', JSON.stringify(rawValue))
     if (scanState === 'loading') return
     clearScanTimer()
 
     const value = rawValue.trim()
+    console.log('[Scanner] trimmed value:', JSON.stringify(value))
     if (!value) return
+
+    const isUUIDTest = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    console.log('[Scanner] UUID test:', isUUIDTest, '| sessionId:', sessionId)
+    console.log('[Scanner] about to fetch reservation for userId:', value, 'sessionId:', sessionId)
 
     setScanState('loading')
 
@@ -250,6 +274,8 @@ export default function SessionAttendeesPage() {
         .eq('session_id', sessionId)
         .single()
 
+      console.log('[Scanner] reservation fetch result:', JSON.stringify(reservation), 'error:', resErr)
+
       if (resErr || !reservation) { showScanError('No reservation found for this session'); return }
 
       if (reservation.status === 'checked_in') { showScanError('Already checked in'); return }
@@ -263,6 +289,7 @@ export default function SessionAttendeesPage() {
   }
 
   async function doScanCheckin(reservation) {
+    console.log('[Scanner] doScanCheckin — reservation:', reservation?.id, 'seat:', reservation?.seat_id)
     setScanState('loading')
     try {
       await checkInReservation(reservation.id, reservation.seat_id)
@@ -444,6 +471,7 @@ export default function SessionAttendeesPage() {
               value={scanInput}
               onChange={e => {
                 const val = e.target.value
+                console.log('[Scanner] input onChange — val:', JSON.stringify(val), 'length:', val.length)
                 setScanInput(val)
                 // Auto-trigger on full UUID (USB scanners may not send Enter)
                 if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim())) {

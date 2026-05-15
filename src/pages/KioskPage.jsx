@@ -233,16 +233,16 @@ export default function KioskPage() {
         ref={inputRef}
         type="text"
         inputMode="none"
-        tabIndex={-1}
+        tabIndex={0}
         className="fixed opacity-0 pointer-events-none"
         style={{ width: 1, height: 1, top: 0, left: 0 }}
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        aria-hidden="true"
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
+        readOnly={false}
       />
 
       {/* Subtle exit link for staff */}
