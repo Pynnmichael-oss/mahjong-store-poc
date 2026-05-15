@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { ProtectedRoute, EmployeeRoute, PublicOnlyRoute } from './ProtectedRoute.jsx'
 import AboutPage from '../pages/AboutPage.jsx'
 import LoginPage from '../pages/auth/LoginPage.jsx'
@@ -20,7 +20,7 @@ import KioskPage from '../pages/KioskPage.jsx'
 
 export default function AppRouter() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<AboutPage />} />
         <Route path="/kiosk" element={<KioskPage />} />
@@ -40,6 +40,6 @@ export default function AppRouter() {
         <Route path="/employee/members" element={<EmployeeRoute><MembersPage /></EmployeeRoute>} />
         <Route path="/employee/reports" element={<EmployeeRoute><ReportsPage /></EmployeeRoute>} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   )
 }
