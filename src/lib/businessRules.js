@@ -63,8 +63,8 @@ export const MEMBERSHIP_CONFIG = {
   },
   flower_pass: {
     label:          'Flower Pass',
-    price:          '$89.99/mo',
-    priceCents:     8999,
+    price:          '$79.99/mo',
+    priceCents:     7999,
     description:    '2 sessions per week',
     color:          'sky',
     weeklyLimit:    2,
