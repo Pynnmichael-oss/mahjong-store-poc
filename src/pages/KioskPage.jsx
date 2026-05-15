@@ -136,7 +136,14 @@ export default function KioskPage() {
   }
 
   function handleChange(e) {
-    bufferRef.current = e.target.value
+    const val = e.target.value
+    bufferRef.current = val
+    // Auto-trigger when a full UUID is typed (Zebra scanner doesn't send Enter)
+    if (UUID_RE.test(val.trim())) {
+      bufferRef.current = ''
+      if (inputRef.current) inputRef.current.value = ''
+      handleScan(val.trim())
+    }
   }
 
   // ── Success ─────────────────────────────────────────────────────────────────
