@@ -65,7 +65,7 @@ export async function fetchUpcomingSessions() {
     (sessions ?? []).map(async session => {
       const { data: count } = await supabase
         .rpc('get_session_availability', { p_session_id: session.id })
-      const reservedCount  = count ?? 0
+const reservedCount  = count ?? 0
       const availableSeats = Math.max(0, session.total_seats - reservedCount)
       const isFull         = availableSeats <= 0
       return { ...session, reservedCount, availableSeats, isFull }

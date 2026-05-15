@@ -8,7 +8,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev       # start Vite dev server (localhost:5173)
 npm run build     # production build to dist/
 npm run preview   # serve the production build locally
-npm run deploy    # build + push to gh-pages branch
 ```
 
 No test runner is configured.
@@ -25,7 +24,7 @@ VITE_SQUARE_LOCATION_ID=your-square-location-id
 
 ## Architecture
 
-**Stack:** React 18 + Vite + Tailwind CSS v3 + Supabase (auth + database). No TypeScript — plain JSX. Deployed via GitHub Pages (HashRouter — required, do not change to BrowserRouter).
+**Stack:** React 18 + Vite + Tailwind CSS v3 + Supabase (auth + database). No TypeScript — plain JSX. Deployed via Netlify (`netlify.toml` with a catch-all `/*` → `/index.html` redirect, which is why BrowserRouter works — do not remove that redirect).
 
 **Routes** (`src/routes/AppRouter.jsx`):
 - Public: `/` (AboutPage), `/kiosk` (no auth guard — intentional)
@@ -46,7 +45,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 **Business rules** (`src/lib/businessRules.js`):
 - **Membership tiers** (canonical keys in `MEMBERSHIP_CONFIG`):
   - `dragon_pass` — $149.99/mo, unlimited, 2 buddy passes/mo, early event access, 15% event discount
-  - `flower_pass` — $89.99/mo, 2 sessions/week (`weeklyLimit: 2`), $15 overage per extra session
+  - `flower_pass` — $79.99/mo, 2 sessions/week (`weeklyLimit: 2`), $15 overage per extra session
   - `bamboo_pass` — $49.99/mo, 1 session/week (`weeklyLimit: 1`), $15 overage per extra session
   - `four_winds_member` — Free account, $15 per session
 - `walk_in` membership type is **retired** — migrated to `four_winds_member`. `walk_in` still exists as a reservation STATUS (unchanged).
@@ -55,6 +54,8 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `countPlaysForSessionWeek(reservations, sessionDate)` — filters `is_primary_seat: true` reservations and counts those falling in the session's week. Pass `sessionDate` (YYYY-MM-DD) when booking; omit to fall back to current week
 - Overage flag: `shouldFlagOverage(membershipType, weeklyCount)` — returns true when weekly count ≥ weekly limit
 - `useWeeklyLimit(reservations, membershipType, sessionDate?)` (`src/hooks/useWeeklyLimit.js`) — convenience hook that wraps both of the above; returns `{ checkedInCount, isOverLimit }`
+- `useWeeklySessionCount()` (`src/hooks/useMonthlySessionCount.js`) — for display only (profile, header); queries the current Mon–Sun week. Exported as `useMonthlySessionCount` for backward compat — use `useWeeklySessionCount` for new code
+- `useFillRateReport(startDate, endDate)` (`src/hooks/useReports.js`) — fetches sessions in a date range and their reservations; returns `{ data: [{ session, reservations }], loading, error }`; used by `ReportsPage`
 - Check-in window: 15 minutes from session start time
 - Seats are grouped into 8 tables (Table 1–8), 4 seats each — `getTableForSeat(seatNumber)` maps seat numbers to tables
 - Use `getMembershipConfig(type)` for all tier lookups; `MEMBERSHIP_TIERS` is a backward-compat alias
@@ -77,7 +78,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 
 **Booking cost** (`src/lib/calculateBookingCost.js`):
 - `calculateBookingCost({ membershipType, seatCount, weeklySessionsUsed })` — returns `{ ownSeatCost, guestSeatCost, totalCents, extraSeats, isFree, isOverage }` in cents
-- Extra seats (beyond the member's own) are always $15 except dragon_pass (uses buddy passes, so $0)
+- Extra seats (beyond the member's own) are always $15 for all membership types. Dragon Pass members use the buddy pass flow (separate system) for free guests — not a cost override here.
 - Use this instead of computing costs inline
 
 **Payments** (`src/services/paymentService.js`):
@@ -101,8 +102,8 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `checkCancellationEligibility(reservationId, userId)` in `cancellationService.js` calls the `get_cancellation_eligibility` Supabase RPC — returns `{ eligible, refundable, refund_amount, square_payment_id, hours_until, … }`
 - `cancelReservation({ reservationId, groupId, cancelWholeGroup, userId })` in `cancellationService.js` — cancels reservation rows and frees seats
 - `processRefund({ squarePaymentId, amountCents })` in `cancellationService.js` — invokes the `square-refund` Edge Function, forwarding the user's Supabase auth token
-- `CancelReservationModal` (`src/components/ui/CancelReservationModal.jsx`) — three display states: within 12-hour window (no refund), outside window with free booking, outside window with paid refund. Group-booking toggle shown for group reservations outside the 12-hour window.
-- Cancellation window: **12 hours** before session start. Cancellations within this window are not refundable.
+- `CancelReservationModal` (`src/components/ui/CancelReservationModal.jsx`) — three display states: within 24-hour window (no refund), outside window with free booking, outside window with paid refund. Group-booking toggle shown for group reservations outside the 24-hour window.
+- Cancellation window: **24 hours** before session start. Cancellations within this window are not refundable.
 - The `get_cancellation_eligibility` and `cancel_reservation_with_refund` RPCs must exist in Supabase (SQL run manually — see comment block in `cancellationService.js`).
 - The `payments` table requires three columns added via SQL: `square_refund_id TEXT`, `refunded_at TIMESTAMPTZ`, `refunded_by UUID REFERENCES auth.users(id)`.
 
