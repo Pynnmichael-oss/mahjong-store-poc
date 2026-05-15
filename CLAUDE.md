@@ -24,7 +24,12 @@ VITE_SQUARE_LOCATION_ID=your-square-location-id
 
 ## Architecture
 
-**Stack:** React 18 + Vite + Tailwind CSS v3 + Supabase (auth + database). No TypeScript — plain JSX. Deployed via Netlify (`netlify.toml` with a catch-all `/*` → `/index.html` redirect, which is why BrowserRouter works — do not remove that redirect).
+**Stack:** React 18 + Vite + Tailwind CSS v3 + Supabase (auth + database). No TypeScript — plain JSX. Deployed via **Netlify** (`netlify.toml` with a catch-all `/*` → `/index.html` redirect).
+
+## Critical Constraints — Never Change
+- **Router:** `BrowserRouter` only — never switch to HashRouter
+- **`vite.config.js` base:** must always be `'/'` — never set to a subdirectory
+- **Deployment:** Netlify only — never run `npm run deploy` or touch gh-pages config
 
 **Routes** (`src/routes/AppRouter.jsx`):
 - Public: `/` (AboutPage), `/kiosk` (no auth guard — intentional)
@@ -170,3 +175,4 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 **Circular seat tables:** `TableDisplay` renders 8 seats around a 300px container using CSS `transform/translate` positioning. Table center is navy with Playfair italic sky text. Orbit radius is 112px.
 
 **Mobile:** all pages must work at 390px. Sticky bottom panels use `fixed bottom-0`. Employee walk-in button is fixed on mobile, inline on desktop (`hidden sm:flex` / `sm:hidden`).
+# Fri May 15 02:26:48 PM CDT 2026
