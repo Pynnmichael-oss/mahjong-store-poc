@@ -66,8 +66,7 @@ export async function cancelReservation({
   cancelWholeGroup = false,
   userId,
 }) {
-  let idsToCancel = [reservationId]
-
+  // If cancelling whole group, cancel each reservation individually via RPC
   if (cancelWholeGroup && groupId) {
     const { data: groupReservations } = await supabase
       .from('reservations')
@@ -77,33 +76,28 @@ export async function cancelReservation({
       .in('status', ['confirmed', 'walk_in'])
 
     if (groupReservations?.length) {
-      idsToCancel = groupReservations.map(r => r.id)
+      for (const r of groupReservations) {
+        const { data, error } = await supabase.rpc('cancel_reservation_with_refund', {
+          p_reservation_id: r.id,
+          p_user_id:        userId,
+          p_is_employee:    false,
+        })
+        if (error) throw new Error(error.message)
+      }
+      return { cancelledCount: groupReservations.length }
     }
   }
 
-  // Step 1 — fetch seat IDs BEFORE cancelling (RLS may block reading cancelled rows)
-  const { data: seatRows } = await supabase
-    .from('reservations')
-    .select('seat_id')
-    .in('id', idsToCancel)
-
-  // Step 2 — cancel the reservations
-  const { error } = await supabase
-    .from('reservations')
-    .update({ status: 'cancelled' })
-    .in('id', idsToCancel)
-
+  // Single reservation — use RPC which handles seat release server-side
+  const { data, error } = await supabase.rpc('cancel_reservation_with_refund', {
+    p_reservation_id: reservationId,
+    p_user_id:        userId,
+    p_is_employee:    false,
+  })
   if (error) throw new Error(error.message)
+  if (!data?.success) throw new Error(data?.reason ?? 'Cancellation failed')
 
-  // Step 3 — free up the seats
-  if (seatRows?.length) {
-    await supabase
-      .from('seats')
-      .update({ status: 'available' })
-      .in('id', seatRows.map(r => r.seat_id))
-  }
-
-  return { cancelledCount: idsToCancel.length }
+  return { cancelledCount: 1 }
 }
 
 export async function processRefund({ squarePaymentId, amountCents, reason = 'Customer cancellation' }) {

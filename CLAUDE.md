@@ -37,6 +37,8 @@ VITE_SQUARE_LOCATION_ID=your-square-location-id
 - `ProtectedRoute` (any logged-in user): `/dashboard`, `/sessions`, `/sessions/:id/reserve`, `/events`, `/my-qr`, `/history`, `/profile`
 - `EmployeeRoute`: `/employee`, `/employee/sessions`, `/employee/sessions/:id`, `/employee/events`, `/employee/members`, `/employee/reports`
 
+**`LandingPage.jsx`** (`src/pages/LandingPage.jsx`) — public self-service guest booking page; currently **not wired into the router**. Implements a 3-step wizard (pick session → pick seat → enter name/phone) via `useGuestBooking` hook, then calls `createGuestReservation` and shows a confirmation card. When added to the router it must be a public (no-auth) route.
+
 **Two user roles** controlled by `profiles.role`:
 - `customer` — books seats, views QR code, RSVPs to events
 - `employee` — manages sessions, checks in attendees, manages events/members
@@ -61,6 +63,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `useWeeklyLimit(reservations, membershipType, sessionDate?)` (`src/hooks/useWeeklyLimit.js`) — convenience hook that wraps both of the above; returns `{ checkedInCount, isOverLimit }`
 - `useWeeklySessionCount()` (`src/hooks/useMonthlySessionCount.js`) — for display only (profile, header); queries the current Mon–Sun week. Exported as `useMonthlySessionCount` for backward compat — use `useWeeklySessionCount` for new code
 - `useFillRateReport(startDate, endDate)` (`src/hooks/useReports.js`) — fetches sessions in a date range and their reservations; returns `{ data: [{ session, reservations }], loading, error }`; used by `ReportsPage`
+- `useGuestBooking()` (`src/hooks/useGuestBooking.js`) — multi-step wizard state for the public guest landing page; tracks `step` (1 | 2 | 3 | 'confirmed'), selected session/seat, guest name/phone; exposes `selectSession`, `selectSeat`, `submitBooking`, `reset`, `backToSessions`, `backToSeats`
 - Check-in window: 15 minutes from session start time
 - Seats are grouped into 8 tables (Table 1–8), 4 seats each — `getTableForSeat(seatNumber)` maps seat numbers to tables
 - Use `getMembershipConfig(type)` for all tier lookups; `MEMBERSHIP_TIERS` is a backward-compat alias
