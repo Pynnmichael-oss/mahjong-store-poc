@@ -4,6 +4,7 @@ import { useUserReservations } from '../../hooks/useReservations.js'
 import { useWeeklyLimit } from '../../hooks/useWeeklyLimit.js'
 import { useWeeklySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import { getMembershipLabel, getMembershipDescription, getWeeklyLimit } from '../../lib/businessRules.js'
+import { getLocalTodayString } from '../../lib/dateUtils.js'
 import FadeUp from '../ui/FadeUp.jsx'
 
 export default function CustomerHeader() {
@@ -12,7 +13,7 @@ export default function CustomerHeader() {
   const { checkedInCount } = useWeeklyLimit(reservations, profile?.membership_type)
   const { weeklyCount } = useWeeklySessionCount()
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const upcoming = reservations.filter(r =>
     r.status === 'confirmed' && (r.sessions?.date ?? '') >= today
   )

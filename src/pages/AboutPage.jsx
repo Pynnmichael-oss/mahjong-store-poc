@@ -6,7 +6,7 @@ import FloatingTiles from '../components/layout/FloatingTiles.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../components/ui/FadeUp.jsx'
 import { supabase } from '../services/supabase.js'
-import { formatSessionDate, formatTime } from '../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../lib/dateUtils.js'
 
 // ─── About page nav (auth-aware) ─────────────────────────────────────────────
 
@@ -172,7 +172,7 @@ export default function AboutPage() {
 
   // Fetch upcoming sessions — next 7 days, public read
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalTodayString()
     const weekOut = new Date()
     weekOut.setDate(weekOut.getDate() + 7)
     const weekOutStr = weekOut.toISOString().split('T')[0]
@@ -206,7 +206,7 @@ export default function AboutPage() {
     return acc
   }, {})
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
 
   return (
     <div id="top" className="min-h-screen bg-warm-white">

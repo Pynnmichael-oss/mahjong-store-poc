@@ -59,3 +59,8 @@ export function getWeekBoundariesForDate(dateStr) {
 export function sessionStartDate(session) {
   return new Date(`${session.date}T${session.start_time}`)
 }
+
+export function getLocalTodayString() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}

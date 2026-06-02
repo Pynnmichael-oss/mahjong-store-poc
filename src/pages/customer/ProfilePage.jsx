@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import { useBuddyPass } from '../../hooks/useBuddyPass.js'
 import { supabase } from '../../services/supabase.js'
 import { saveCard } from '../../services/cardService.js'
+import { changeSubscription, cancelSubscription, getPlanVariationId } from '../../services/subscriptionService.js'
 import { checkCancellationEligibility, cancelReservationWithRefund } from '../../services/reservationService.js'
 import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate, getWeeklyLimit, getTableForSeat } from '../../lib/businessRules.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
@@ -12,7 +13,6 @@ import { useWeeklySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
-import SquarePaymentForm from '../../components/ui/SquarePaymentForm.jsx'
 
 const APP_ID      = import.meta.env.VITE_SQUARE_APP_ID
 const LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID
@@ -30,8 +30,8 @@ const UPGRADE_PLANS = [
   {
     key: 'flower_pass',
     name: 'Flower Pass',
-    price: '$89.99',
-    amountCents: 8999,
+    price: '$79.99',
+    amountCents: 7999,
     border: 'border-t-4 border-sky-mid',
     selectedRing: 'ring-2 ring-sky-mid',
     tagCls: 'bg-sky-light text-navy border border-sky-mid/30',
@@ -112,37 +112,45 @@ export default function ProfilePage() {
   }
 
   async function handleFreePlanChange() {
-    const { error: dbErr } = await supabase
-      .from('profiles')
-      .update({ membership_type: upgradePlan })
-      .eq('id', user.id)
-    if (dbErr) {
-      setUpgradeError(
-        dbErr.message.includes('invalid input value')
-          ? 'This plan is not yet available. Please contact staff.'
-          : dbErr.message
-      )
-      return
+    setUpgradeError(null)
+    try {
+      // Schedule cancellation at period end — keeps access until next billing date
+      if (profile?.subscription_id) {
+        await cancelSubscription({ subscriptionId: profile.subscription_id })
+      }
+      // Do NOT change membership_type here — webhook will set it to four_winds_member
+      // at period end when Square fires subscription.canceled.
+      // Show success message with the date their access ends.
+      setUpgradeSuccess(true)
+      setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 2500)
+    } catch (err) {
+      setUpgradeError(err.message ?? 'Plan change failed')
     }
-    setUpgradeSuccess(true)
-    setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 1500)
   }
 
-  function handleUpgradePaymentSuccess() {
-    // Payment went through — update membership
-    supabase.from('profiles').update({ membership_type: upgradePlan }).eq('id', user.id)
-      .then(({ error: dbErr }) => {
-        if (dbErr) {
-          setUpgradeError(
-            dbErr.message.includes('invalid input value')
-              ? 'This plan is not yet available. Please contact staff.'
-              : dbErr.message
-          )
-          return
-        }
-        setUpgradeSuccess(true)
-        setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 1500)
+  async function handleConfirmPaidChange() {
+    setUpgradeError(null)
+    const newPlanVariationId = getPlanVariationId(upgradePlan)
+    if (!newPlanVariationId) {
+      setUpgradeError('Invalid plan selection')
+      return
+    }
+    try {
+      await changeSubscription({
+        userId:             user.id,
+        oldSubscriptionId:  profile?.subscription_id ?? null,
+        newPlanVariationId,
+        newMembershipType:  upgradePlan,
+        squareCustomerId:   profile?.square_customer_id,
+        squareCardId:       profile?.square_card_id,
+        email:              user.email,
+        displayName:        profile?.full_name ?? user.email,
       })
+      setUpgradeSuccess(true)
+      setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 2000)
+    } catch (err) {
+      setUpgradeError(err.message ?? 'Plan change failed')
+    }
   }
 
   function handleNameChange(e) {
@@ -683,14 +691,23 @@ export default function ProfilePage() {
             </div>
 
             {upgradeSuccess && (
-              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-center">
-                <p className="font-sans text-sm text-green-700 font-medium">Plan updated! Refreshing…</p>
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-center space-y-1">
+                <p className="font-sans text-sm text-green-700 font-medium">
+                  {upgradePlan === 'four_winds_member'
+                    ? 'Plan cancellation scheduled'
+                    : 'Plan changed successfully!'}
+                </p>
+                {upgradePlan === 'four_winds_member' && (
+                  <p className="font-cormorant italic text-green-700 text-base">
+                    You'll keep your current benefits until your next billing date.
+                  </p>
+                )}
               </div>
             )}
 
             {!upgradeSuccess && upgradeStep === 'choose' && (
               <div className="space-y-3">
-                {UPGRADE_PLANS.filter(p => p.key !== membershipType).map(plan => (
+                {UPGRADE_PLANS.filter(p => p.key !== membershipType && p.key !== 'founding_member').map(plan => (
                   <button
                     key={plan.key}
                     onClick={() => setUpgradePlan(plan.key)}
@@ -754,18 +771,20 @@ export default function ProfilePage() {
                     <p className="font-playfair text-navy text-xl">{plan?.price}<span className="font-sans text-text-soft text-sm">/mo</span></p>
                   </div>
 
+                  <div className="bg-sky-light/40 border border-sky-mid/20 rounded-xl px-4 py-3">
+                    <p className="font-cormorant italic text-navy text-base leading-relaxed">
+                      Your current plan will be cancelled and the new plan will start immediately. Your card on file will be charged <span className="font-medium">{plan?.price}</span> today, then again every month on the same date.
+                    </p>
+                  </div>
+
                   {upgradeError && <Alert type="error">{upgradeError}</Alert>}
 
-                  <SquarePaymentForm
-                    containerId="square-card-profile"
-                    amountCents={plan?.amountCents ?? 0}
-                    description={`Four Winds ${plan?.name} membership`}
-                    userId={user?.id ?? null}
-                    membershipType={upgradePlan}
-                    onSuccess={handleUpgradePaymentSuccess}
-                    onError={msg => setUpgradeError(msg)}
-                    submitLabel={`Pay ${plan?.price}`}
-                  />
+                  <button
+                    onClick={handleConfirmPaidChange}
+                    className="w-full bg-navy text-sky rounded-full py-3 font-sans font-medium text-sm hover:bg-navy-deep transition-all"
+                  >
+                    Confirm — Charge {plan?.price} &amp; Switch
+                  </button>
 
                   <p className="text-center">
                     <button

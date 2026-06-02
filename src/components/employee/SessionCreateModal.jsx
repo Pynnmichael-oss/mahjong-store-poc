@@ -3,7 +3,7 @@ import Modal from '../ui/Modal.jsx'
 import Alert from '../ui/Alert.jsx'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import { createSessionWithSeats } from '../../services/sessionService.js'
-import { formatSessionDate } from '../../lib/dateUtils.js'
+import { formatSessionDate, getLocalTodayString } from '../../lib/dateUtils.js'
 
 const PRESETS = [
   { key: 'morning',   label: 'Morning',   start: '10:00:00', end: '12:00:00', display: '10:00 AM – 12:00 PM' },
@@ -14,7 +14,7 @@ const PRESETS = [
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0]
+  return getLocalTodayString()
 }
 
 // Returns the Monday of the week containing the given date string
@@ -23,13 +23,13 @@ function getMondayOf(dateStr) {
   const day = d.getDay() // 0=Sun
   const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
-  return d.toISOString().split('T')[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 // ─── Quick Add Tab ────────────────────────────────────────────────────────────

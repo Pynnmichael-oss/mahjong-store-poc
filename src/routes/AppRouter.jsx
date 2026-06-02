@@ -3,6 +3,8 @@ import { ProtectedRoute, EmployeeRoute, PublicOnlyRoute } from './ProtectedRoute
 import AboutPage from '../pages/AboutPage.jsx'
 import LoginPage from '../pages/auth/LoginPage.jsx'
 import SignupPage from '../pages/auth/SignupPage.jsx'
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage.jsx'
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage.jsx'
 import DashboardPage from '../pages/customer/DashboardPage.jsx'
 import SessionsPage from '../pages/customer/SessionsPage.jsx'
 import ReservePage from '../pages/customer/ReservePage.jsx'
@@ -26,6 +28,8 @@ export default function AppRouter() {
         <Route path="/kiosk" element={<KioskPage />} />
         <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route path="/signup" element={<PublicOnlyRoute><SignupPage /></PublicOnlyRoute>} />
+        <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPasswordPage /></PublicOnlyRoute>} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
         <Route path="/sessions/:id/reserve" element={<ProtectedRoute><ReservePage /></ProtectedRoute>} />

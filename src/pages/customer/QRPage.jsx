@@ -6,7 +6,7 @@ import EmptyState from '../../components/ui/EmptyState.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { MEMBERSHIP_TIERS, getMembershipBadgeClasses, getTableForSeat } from '../../lib/businessRules.js'
 import { supabase } from '../../services/supabase.js'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
 
 export default function QRPage() {
   const { user, profile } = useAuth()
@@ -16,7 +16,7 @@ export default function QRPage() {
 
   useEffect(() => {
     if (!user?.id) return
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalTodayString()
     supabase
       .from('reservations')
       .select('*, sessions(date, start_time, end_time), seats(seat_number)')

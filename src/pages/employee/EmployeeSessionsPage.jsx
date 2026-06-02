@@ -8,12 +8,12 @@ import Badge from '../../components/ui/Badge.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import { fetchSessionsInRange } from '../../services/sessionService.js'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
 
 function addDays(n) {
   const d = new Date()
   d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export default function EmployeeSessionsPage() {
@@ -22,7 +22,7 @@ export default function EmployeeSessionsPage() {
   const [error, setError] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
 
   async function load() {
     setLoading(true)

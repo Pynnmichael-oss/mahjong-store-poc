@@ -10,7 +10,7 @@ import CancelReservationModal from '../../components/ui/CancelReservationModal.j
 import { useSessions } from '../../hooks/useSessions.js'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { supabase } from '../../services/supabase.js'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
 import { getTableForSeat, MAX_SEATS_PER_BOOKING } from '../../lib/businessRules.js'
 
 export default function SessionsPage() {
@@ -19,7 +19,7 @@ export default function SessionsPage() {
   const [filter, setFilter] = useState('all')
   const [showWelcome, setShowWelcome] = useState(false)
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const weekEnd = new Date()
   weekEnd.setDate(weekEnd.getDate() + 7)
   const weekEndStr = weekEnd.toISOString().split('T')[0]
@@ -47,8 +47,13 @@ export default function SessionsPage() {
         const map = {}
         for (const r of (data ?? [])) {
           const sid = r.session_id
-          if (!map[sid]) map[sid] = { primary: null, total: 0, sessionObj: r.sessions }
+          if (!map[sid]) map[sid] = { primary: null, total: 0, sessionObj: r.sessions, allSeats: [] }
           map[sid].total++
+          map[sid].allSeats.push({
+            reservationId: r.id,
+            seatNumber: r.seats?.seat_number,
+            isPrimary: r.is_primary_seat,
+          })
           if (r.is_primary_seat) map[sid].primary = r
         }
         const sorted = Object.values(map)
@@ -77,8 +82,13 @@ export default function SessionsPage() {
         const map = {}
         for (const r of (data ?? [])) {
           const sid = r.session_id
-          if (!map[sid]) map[sid] = { primary: null, total: 0, sessionObj: r.sessions }
+          if (!map[sid]) map[sid] = { primary: null, total: 0, sessionObj: r.sessions, allSeats: [] }
           map[sid].total++
+          map[sid].allSeats.push({
+            reservationId: r.id,
+            seatNumber: r.seats?.seat_number,
+            isPrimary: r.is_primary_seat,
+          })
           if (r.is_primary_seat) map[sid].primary = r
         }
         const sorted = Object.values(map)
@@ -176,10 +186,8 @@ export default function SessionsPage() {
                           )}
                           <button
                             onClick={() => setCancelModal({
-                              reservationId: primary.id,
-                              groupId:       primary.group_reservation_id,
-                              sessionInfo:   sessionObj,
-                              totalSeats:    total,
+                              groupSeats:  upcomingBookings.find(b => b.primary?.id === primary.id)?.allSeats ?? [{ reservationId: primary.id, seatNumber: primary.seats?.seat_number, isPrimary: true }],
+                              sessionInfo: sessionObj,
                             })}
                             className="font-sans text-xs text-text-soft hover:text-navy transition-colors"
                           >
@@ -232,10 +240,8 @@ export default function SessionsPage() {
       {/* Cancel reservation modal */}
       {cancelModal && (
         <CancelReservationModal
-          reservationId={cancelModal.reservationId}
-          groupId={cancelModal.groupId}
+          groupSeats={cancelModal.groupSeats}
           sessionInfo={cancelModal.sessionInfo}
-          totalSeats={cancelModal.totalSeats}
           onConfirm={() => {
             setCancelModal(null)
             refreshUpcoming()

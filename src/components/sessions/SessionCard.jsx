@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
 
 export default function SessionCard({ session, showReserveButton = false, isBooked = false }) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const isToday = session.date === today
+  const sessionStart = new Date(session.start_time)
+  const cutoff = new Date(sessionStart.getTime() + 15 * 60 * 1000)
+  const isPast = new Date() >= cutoff
 
   const totalSeats = session.total_seats ?? 32
   const remaining = session.availableSeats ?? (totalSeats - (session.reserved_count ?? 0))
@@ -11,7 +14,7 @@ export default function SessionCard({ session, showReserveButton = false, isBook
   const isAlmostFull = remaining > 0 && remaining <= 6
 
   return (
-    <div className={`bg-white rounded-2xl border border-navy/8 shadow-sm overflow-hidden transition-all duration-250 ${isToday ? 'border-l-4 border-l-gold' : ''} ${isFull ? 'opacity-75' : 'hover:shadow-md hover:-translate-y-1'}`}>
+    <div className={`bg-white rounded-2xl border border-navy/8 shadow-sm overflow-hidden transition-all duration-250 ${isToday ? 'border-l-4 border-l-gold' : ''} ${isPast ? 'opacity-50' : isFull ? 'opacity-75' : 'hover:shadow-md hover:-translate-y-1'}`}>
       <div className="p-5 flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
           <p className="font-sans text-[11px] uppercase tracking-[3px] text-sky-mid mb-1">
@@ -24,18 +27,24 @@ export default function SessionCard({ session, showReserveButton = false, isBook
             {formatTime(session.start_time)} – {formatTime(session.end_time)}
           </p>
           <span className={`inline-flex items-center mt-2 px-3 py-1 rounded-full font-sans text-xs font-medium ${
-            isFull
+            isPast
+              ? 'bg-red-50 border border-red-300 text-red-700'
+              : isFull
               ? 'bg-gold-light border border-gold text-navy'
               : isAlmostFull
               ? 'bg-gold-light text-navy'
               : 'bg-sky-light text-navy'
           }`}>
-            {isFull ? 'Full' : `${remaining} of ${totalSeats} seats open`}
+            {isPast ? 'Session Closed' : isFull ? 'Full' : `${remaining} of ${totalSeats} seats open`}
           </span>
         </div>
 
         {showReserveButton && (
-          isBooked ? (
+          isPast ? (
+            <span className="flex-shrink-0 inline-flex items-center px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-red-50 text-red-700 border border-red-300">
+              Closed
+            </span>
+          ) : isBooked ? (
             <span className="flex-shrink-0 inline-flex items-center px-3 py-1.5 rounded-full font-sans text-xs font-medium bg-sky-light text-sky-mid border border-sky-mid/30">
               Already booked ✓
             </span>

@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js'
+import { getLocalTodayString } from '../lib/dateUtils.js'
 
 export async function fetchSessionsInRange(startDate, endDate) {
   const { data, error } = await supabase
@@ -51,7 +52,7 @@ export async function createSessionWithSeats(date, startTime, endTime) {
 }
 
 export async function fetchUpcomingSessions() {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const { data: sessions, error } = await supabase
     .from('sessions')
     .select('id, date, start_time, end_time, status, total_seats')
@@ -84,7 +85,7 @@ export async function fetchSessionById(sessionId) {
 }
 
 export async function fetchTodaysSessions() {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const { data, error } = await supabase
     .from('sessions')
     .select('*')

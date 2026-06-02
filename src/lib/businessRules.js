@@ -100,6 +100,19 @@ export const MEMBERSHIP_CONFIG = {
     eventDiscount:  0,
     requiresPaymentPerSession: true,
   },
+  founding_member: {
+    label:          'Founding Member',
+    price:          '$120/mo',
+    priceCents:     12000,
+    description:    'Charter member — unlimited play',
+    color:          'gold',
+    weeklyLimit:    null,
+    monthlyLimit:   null,
+    buddyPasses:    2,
+    earlyEvents:    true,
+    eventDiscount:  0.15,
+    requiresPaymentPerSession: false,
+  },
 }
 
 export function getMembershipConfig(type) {
@@ -121,6 +134,7 @@ export function getMembershipBadgeClasses(type) {
     flower_pass:       'bg-sky-light text-navy border border-sky-mid/30',
     bamboo_pass:       'bg-[#EAF3DE] text-[#27500A] border border-[#3B6D11]',
     four_winds_member: 'bg-navy text-sky',
+    founding_member:   'bg-gold text-navy border-2 border-navy/20',
   }
   return map[type] ?? map.four_winds_member
 }

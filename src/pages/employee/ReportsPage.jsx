@@ -4,22 +4,22 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import { useFillRateReport } from '../../hooks/useReports.js'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function today() { return new Date().toISOString().split('T')[0] }
+function today() { return getLocalTodayString() }
 
 function getMondayOf(dateStr) {
   const d = new Date(dateStr + 'T12:00:00')
   const day = d.getDay()
   const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
-  return d.toISOString().split('T')[0]
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 // ─── Fill Rate Report ─────────────────────────────────────────────────────────

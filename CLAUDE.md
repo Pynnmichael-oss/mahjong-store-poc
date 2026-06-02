@@ -108,11 +108,11 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 
 **Cancellation and refund flow:**
 - `checkCancellationEligibility(reservationId, userId)` in `cancellationService.js` calls the `get_cancellation_eligibility` Supabase RPC — returns `{ eligible, refundable, refund_amount, square_payment_id, hours_until, … }`
-- `cancelReservation({ reservationId, groupId, cancelWholeGroup, userId })` in `cancellationService.js` — cancels reservation rows and frees seats
+- `cancelReservation({ reservationId, groupId, cancelWholeGroup, userId })` in `cancellationService.js` — delegates to `cancel_reservation_with_refund` RPC (`p_is_employee: false`) which handles seat release server-side; group cancellations iterate each reservation through the same RPC
 - `processRefund({ squarePaymentId, amountCents })` in `cancellationService.js` — invokes the `square-refund` Edge Function, forwarding the user's Supabase auth token
 - `CancelReservationModal` (`src/components/ui/CancelReservationModal.jsx`) — three display states: within 24-hour window (no refund), outside window with free booking, outside window with paid refund. Group-booking toggle shown for group reservations outside the 24-hour window.
 - Cancellation window: **24 hours** before session start. Cancellations within this window are not refundable.
-- The `get_cancellation_eligibility` and `cancel_reservation_with_refund` RPCs must exist in Supabase (SQL run manually — see comment block in `cancellationService.js`).
+- `get_cancellation_eligibility` RPC SQL is documented in the comment block at the top of `cancellationService.js`. `cancel_reservation_with_refund` RPC SQL is **not** in the codebase — it must be created separately in the Supabase SQL editor.
 - The `payments` table requires three columns added via SQL: `square_refund_id TEXT`, `refunded_at TIMESTAMPTZ`, `refunded_by UUID REFERENCES auth.users(id)`.
 
 **Database schema (key tables):**
@@ -178,4 +178,3 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 **Circular seat tables:** `TableDisplay` renders 8 seats around a 300px container using CSS `transform/translate` positioning. Table center is navy with Playfair italic sky text. Orbit radius is 112px.
 
 **Mobile:** all pages must work at 390px. Sticky bottom panels use `fixed bottom-0`. Employee walk-in button is fixed on mobile, inline on desktop (`hidden sm:flex` / `sm:hidden`).
-# Fri May 15 02:26:48 PM CDT 2026

@@ -4,7 +4,7 @@ import CustomerHeader from '../../components/layout/CustomerHeader.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useUserReservations } from '../../hooks/useReservations.js'
 import FadeUp from '../../components/ui/FadeUp.jsx'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
 import { getTableForSeat } from '../../lib/businessRules.js'
 
 
@@ -12,7 +12,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const { reservations, loading: resLoading } = useUserReservations(user?.id)
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const upcoming = reservations
     .filter(r =>
       r.status === 'confirmed' &&

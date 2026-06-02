@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import Badge from '../ui/Badge.jsx'
 import Modal from '../ui/Modal.jsx'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
 import { cancelSession } from '../../services/sessionService.js'
 
 export default function SessionSummaryCard({ session, reservations = [], onCancelled }) {
@@ -13,7 +13,7 @@ export default function SessionSummaryCard({ session, reservations = [], onCance
   const capacity    = session.total_seats ?? 32
   const fillPct     = Math.round((totalBooked / capacity) * 100)
 
-  const today       = new Date().toISOString().split('T')[0]
+  const today       = getLocalTodayString()
   const isToday     = session.date === today
   const isCancelled = session.status === 'cancelled'
 

@@ -100,6 +100,38 @@ export async function cancelReservation({
   return { cancelledCount: 1 }
 }
 
+export async function cancelMultipleReservations({ reservationIds, userId }) {
+  if (!reservationIds?.length) {
+    return { cancelledCount: 0, totalRefundCents: 0, refunds: [] }
+  }
+
+  const refunds = []
+  let totalRefundCents = 0
+
+  for (const id of reservationIds) {
+    // Check eligibility per-seat to compute proportional refund
+    const eligibility = await checkCancellationEligibility(id, userId)
+
+    const { data, error } = await supabase.rpc('cancel_reservation_with_refund', {
+      p_reservation_id: id,
+      p_user_id:        userId,
+      p_is_employee:    false,
+    })
+    if (error) throw new Error(error.message)
+    if (!data?.success) throw new Error(data?.reason ?? `Cancellation failed for ${id}`)
+
+    if (eligibility?.refundable && eligibility?.square_payment_id && eligibility?.refund_amount > 0) {
+      refunds.push({
+        squarePaymentId: eligibility.square_payment_id,
+        amountCents: eligibility.refund_amount,
+      })
+      totalRefundCents += eligibility.refund_amount
+    }
+  }
+
+  return { cancelledCount: reservationIds.length, totalRefundCents, refunds }
+}
+
 export async function processRefund({ squarePaymentId, amountCents, reason = 'Customer cancellation' }) {
   const { data: { session: authSession } } = await supabase.auth.getSession()
   const { data, error } = await supabase.functions.invoke('square-refund', {

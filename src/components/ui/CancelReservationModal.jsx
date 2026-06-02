@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext.jsx'
 import {
   checkCancellationEligibility,
-  cancelReservation,
+  cancelMultipleReservations,
   processRefund,
 } from '../../services/cancellationService.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
@@ -10,58 +10,95 @@ import LoadingSpinner from './LoadingSpinner.jsx'
 import Alert from './Alert.jsx'
 
 export default function CancelReservationModal({
-  reservationId,
-  groupId,
+  groupSeats,
   sessionInfo,
-  totalSeats,
   onConfirm,
   onClose,
 }) {
   const { user } = useAuth()
 
-  const [loading,          setLoading]          = useState(true)
-  const [eligibility,      setEligibility]      = useState(null)
-  const [cancelWholeGroup, setCancelWholeGroup] = useState(true)
-  const [confirming,       setConfirming]       = useState(false)
-  const [error,            setError]            = useState(null)
-  const [confirmed,        setConfirmed]        = useState(false)
-  const [refundResult,     setRefundResult]     = useState(null)
-
-  const isGroup = groupId && totalSeats > 1
+  const [loading,        setLoading]        = useState(true)
+  const [eligibilities,  setEligibilities]  = useState({})   // { reservationId: eligibility }
+  const [selectedIds,    setSelectedIds]    = useState(new Set())
+  const [confirming,     setConfirming]     = useState(false)
+  const [error,          setError]          = useState(null)
+  const [confirmed,      setConfirmed]      = useState(false)
+  const [refundResult,   setRefundResult]   = useState(null)
 
   useEffect(() => {
-    if (!user?.id) return
-    checkCancellationEligibility(reservationId, user.id)
-      .then(data => setEligibility(data))
+    if (!user?.id || !groupSeats?.length) return
+    Promise.all(
+      groupSeats.map(s =>
+        checkCancellationEligibility(s.reservationId, user.id)
+          .then(data => [s.reservationId, data])
+      )
+    )
+      .then(results => {
+        const map = {}
+        for (const [id, data] of results) map[id] = data
+        setEligibilities(map)
+      })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
-  }, [reservationId, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleSeat(seat) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+
+      // Check if the primary is currently selected
+      const primarySeat = groupSeats.find(s => s.isPrimary)
+      const primarySelected = primarySeat ? prev.has(primarySeat.reservationId) : false
+
+      // If primary is selected and user is trying to toggle a non-primary seat, ignore
+      if (primarySelected && !seat.isPrimary) {
+        return prev
+      }
+
+      if (next.has(seat.reservationId)) {
+        next.delete(seat.reservationId)
+        // If unchecking primary, also uncheck all auto-selected guest seats
+        if (seat.isPrimary) {
+          for (const s of groupSeats) {
+            if (!s.isPrimary) next.delete(s.reservationId)
+          }
+        }
+      } else {
+        next.add(seat.reservationId)
+        // If selecting primary, auto-select all other seats in the group
+        if (seat.isPrimary) {
+          for (const s of groupSeats) next.add(s.reservationId)
+        }
+      }
+      return next
+    })
+  }
 
   async function handleConfirm() {
     setConfirming(true)
     setError(null)
     try {
-      await cancelReservation({
-        reservationId,
-        groupId,
-        cancelWholeGroup: isGroup && cancelWholeGroup,
+      const ids = Array.from(selectedIds)
+      const { totalRefundCents, refunds } = await cancelMultipleReservations({
+        reservationIds: ids,
         userId: user.id,
       })
 
-      let refunded = false
-      if (eligibility?.refundable && eligibility?.square_payment_id) {
+      // Process refunds (best-effort, non-fatal)
+      let totalRefunded = 0
+      for (const r of refunds) {
         try {
           await processRefund({
-            squarePaymentId: eligibility.square_payment_id,
-            amountCents: eligibility.refund_amount,
+            squarePaymentId: r.squarePaymentId,
+            amountCents: r.amountCents,
           })
-          refunded = true
+          totalRefunded += r.amountCents
         } catch {
           // Refund failure is non-fatal — reservation is still cancelled
         }
       }
 
-      setRefundResult(refunded ? eligibility.refund_amount : null)
+      setRefundResult(totalRefunded > 0 ? totalRefunded : null)
       setConfirmed(true)
       setTimeout(() => onConfirm(), 2000)
     } catch (err) {
@@ -74,10 +111,6 @@ export default function CancelReservationModal({
   const sessionLabel = sessionInfo
     ? `${formatSessionDate(sessionInfo.date)} · ${formatTime(sessionInfo.start_time)}`
     : ''
-
-  const refundLabel = eligibility?.refund_amount
-    ? `$${(eligibility.refund_amount / 100).toFixed(2)}`
-    : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
@@ -123,106 +156,98 @@ export default function CancelReservationModal({
           <Alert type="error" className="mb-4">{error}</Alert>
         )}
 
-        {(() => {
-          if (loading || confirmed || !eligibility?.eligible) return null
-
-          const withinWindow  = eligibility.hours_until < 24
-          const hasPaidBooking = eligibility.refundable === true && eligibility.refund_amount > 0
-          const isFreeBooking  = !withinWindow && !hasPaidBooking
-
-          // Group seat-choice radios — shown in B and C only
-          const GroupChoice = isGroup && !withinWindow ? (
-            <div className="space-y-2">
-              <button onClick={() => setCancelWholeGroup(false)} className="w-full flex items-center gap-3 text-left">
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${!cancelWholeGroup ? 'border-navy bg-navy' : 'border-text-soft'}`}>
-                  {!cancelWholeGroup && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-                <span className="font-sans text-navy text-sm">Cancel my seat only</span>
-              </button>
-              <button onClick={() => setCancelWholeGroup(true)} className="w-full flex items-center gap-3 text-left">
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${cancelWholeGroup ? 'border-navy bg-navy' : 'border-text-soft'}`}>
-                  {cancelWholeGroup && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-                <span className="font-sans text-navy text-sm">Cancel all {totalSeats} seats</span>
-              </button>
-            </div>
-          ) : null
-
-          // State A — within 2-hour window
-          if (withinWindow) {
-            return (
-              <div className="space-y-4">
-                <div className="bg-gold-light border border-gold/40 rounded-xl px-4 py-3 flex items-start gap-2">
-                  <span className="text-gold mt-0.5 flex-shrink-0">⚠</span>
-                  <p className="font-cormorant italic text-navy text-base leading-relaxed">
-                    This session starts in less than 24 hours. Cancellations within the 24-hour window are not refundable.
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={onClose} className="flex-1 py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy text-navy hover:bg-sky-pale transition-all">
-                    Keep my reservation
-                  </button>
-                  <button onClick={handleConfirm} disabled={confirming} className="flex-1 py-3 rounded-full font-sans font-medium text-sm text-white hover:opacity-90 transition-all disabled:opacity-50" style={{ background: '#E24B4A' }}>
-                    {confirming ? 'Cancelling…' : 'Cancel without refund'}
-                  </button>
-                </div>
-              </div>
-            )
-          }
-
-          // State B — outside window, free booking
-          if (isFreeBooking) {
-            return (
-              <div className="space-y-4">
-                <p className="font-cormorant italic text-text-mid leading-relaxed" style={{ fontSize: '15px' }}>
-                  No charge was made for this booking. You can cancel for free.
-                </p>
-                {GroupChoice}
-                <div className="flex gap-3 pt-1">
-                  <button onClick={onClose} className="flex-1 py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy text-navy hover:bg-sky-pale transition-all">
-                    Keep my reservation
-                  </button>
-                  <button onClick={handleConfirm} disabled={confirming} className="flex-1 py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50">
-                    {confirming ? 'Cancelling…' : 'Cancel reservation'}
-                  </button>
-                </div>
-              </div>
-            )
-          }
-
-          // State C — outside window, paid booking with refund
-          return (
-            <div className="space-y-4">
-              <p className="font-cormorant text-text-mid text-base leading-relaxed">
-                You will receive a full refund of{' '}
-                <span className="font-medium text-navy">{refundLabel}</span>{' '}
-                to your card on file within 5–10 business days.
-              </p>
-              {GroupChoice}
-              <div className="flex gap-3 pt-1">
-                <button onClick={onClose} className="flex-1 py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy text-navy hover:bg-sky-pale transition-all">
-                  Keep my reservation
-                </button>
-                <button onClick={handleConfirm} disabled={confirming} className="flex-1 py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50">
-                  {confirming ? 'Cancelling…' : `Cancel & refund ${refundLabel}`}
-                </button>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* Not eligible */}
-        {!loading && !confirmed && eligibility && !eligibility.eligible && (
+        {!loading && !confirmed && (
           <div className="space-y-4">
-            <p className="font-cormorant italic text-text-mid text-base">{eligibility.reason}</p>
-            <button
-              onClick={onClose}
-              className="w-full py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy text-navy hover:bg-sky-pale transition-all"
-            >
-              Close
-            </button>
+            {(() => {
+              const anyWithinWindow = Object.values(eligibilities).some(e => e?.eligible && e?.hours_until < 24)
+              const totalRefundCents = Array.from(selectedIds).reduce((sum, id) => {
+                const e = eligibilities[id]
+                return sum + (e?.refundable ? (e?.refund_amount ?? 0) : 0)
+              }, 0)
+
+              return (
+                <>
+                  {anyWithinWindow && (
+                    <div className="bg-gold-light border border-gold/40 rounded-xl px-4 py-3 flex items-start gap-2">
+                      <span className="text-gold mt-0.5 flex-shrink-0">⚠</span>
+                      <p className="font-cormorant italic text-navy text-base leading-relaxed">
+                        This session starts in less than 24 hours. Cancellations within the 24-hour window are not refundable.
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="font-sans text-sm text-text-mid">Select which seats to cancel:</p>
+                  <div className="space-y-2">
+                    {groupSeats.map(seat => {
+                      const checked = selectedIds.has(seat.reservationId)
+                      const primarySeat = groupSeats.find(s => s.isPrimary)
+                      const primarySelected = primarySeat ? selectedIds.has(primarySeat.reservationId) : false
+                      const isLocked = primarySelected && !seat.isPrimary
+                      return (
+                        <button
+                          key={seat.reservationId}
+                          onClick={() => toggleSeat(seat)}
+                          disabled={isLocked}
+                          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                            checked ? 'border-navy bg-sky-pale' : 'border-navy/10 bg-white hover:border-navy/30'
+                          } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                            checked ? 'bg-navy border-navy' : 'bg-white border-navy/30'
+                          }`}>
+                            {checked && (
+                              <svg className="w-3 h-3 text-sky" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-sans text-navy text-sm font-medium">
+                              Seat {seat.seatNumber}
+                            </p>
+                            <p className="font-cormorant italic text-text-soft text-sm">
+                              {seat.isPrimary ? 'Your seat (primary)' : 'Guest seat'}
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {(() => {
+                    const primarySeat = groupSeats.find(s => s.isPrimary)
+                    const primarySelected = primarySeat ? selectedIds.has(primarySeat.reservationId) : false
+                    return primarySelected && groupSeats.length > 1 ? (
+                      <p className="font-cormorant italic text-text-soft text-sm">
+                        Cancelling your own seat will cancel all guest seats — guests can't attend without you.
+                      </p>
+                    ) : null
+                  })()}
+
+                  {totalRefundCents > 0 && (
+                    <p className="font-cormorant text-text-mid text-base">
+                      Refund of <span className="font-medium text-navy">${(totalRefundCents / 100).toFixed(2)}</span> will be returned to your card in 5–10 business days.
+                    </p>
+                  )}
+
+                  <div className="flex gap-3 pt-1">
+                    <button onClick={onClose} className="flex-1 py-3 rounded-full font-sans text-sm font-medium border-[1.5px] border-navy text-navy hover:bg-sky-pale transition-all">
+                      Keep reservation
+                    </button>
+                    <button
+                      onClick={handleConfirm}
+                      disabled={confirming || selectedIds.size === 0}
+                      className="flex-1 py-3 rounded-full font-sans font-medium text-sm bg-navy text-sky hover:bg-navy-deep transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {confirming ? 'Cancelling…' : `Cancel ${selectedIds.size} seat${selectedIds.size !== 1 ? 's' : ''}`}
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         )}
+
       </div>
     </div>
   )

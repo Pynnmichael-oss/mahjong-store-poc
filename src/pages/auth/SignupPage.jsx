@@ -6,6 +6,16 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import FloatingTiles from '../../components/layout/FloatingTiles.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 
+const FOUNDING_WINDOW_END = '2025-06-04'
+const FOUNDING_MEMBER_ENABLED = new Date() <= new Date(FOUNDING_WINDOW_END + 'T23:59:59')
+
+const PLAN_VARIATION_IDS = {
+  dragon_pass:     'OLMGLGNESDB2LNOOACKJLB3S',
+  flower_pass:     'EMTGGV4RRQAIHZ5ZYC6WWRX4',
+  bamboo_pass:     'IHNAVMMGCZCZIOP75MINXF5Z',
+  founding_member: 'XSEGNYO36QFU6PLVQLQ5FSIN',
+}
+
 // ─── Membership plan definitions (signup-specific) ────────────────────────────
 const PLANS = [
   {
@@ -67,7 +77,28 @@ const PLANS = [
     ],
     note: 'Default if no plan selected',
   },
+  {
+    key: 'founding_member',
+    name: 'Founding Member',
+    price: '$120',
+    period: '/mo',
+    amountCents: 12000,
+    border: 'border-t-4 border-gold',
+    selectedBorder: 'border-2 border-gold',
+    btn: 'bg-gold text-navy hover:bg-gold/90',
+    badge: 'Founding',
+    benefits: [
+      'Unlimited sessions — charter recognition',
+      '2 buddy passes per month',
+      '15% off events + early access',
+      'Exclusive founding member badge',
+    ],
+  },
 ]
+
+const VISIBLE_PLANS = FOUNDING_MEMBER_ENABLED
+  ? PLANS
+  : PLANS.filter(p => p.key !== 'founding_member')
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 const STEP_LABELS = { 1: 'Your Details', 2: 'Choose Your Plan', 3: 'Payment' }
@@ -179,7 +210,7 @@ export default function SignupPage() {
   }, [step])
 
   // ── Step 1 validation ──────────────────────────────────────────────────────
-  function handleContinue(e) {
+  async function handleContinue(e) {
     e.preventDefault()
     setStep1Error(null)
     if (!firstName.trim() || !lastName.trim()) {
@@ -190,6 +221,19 @@ export default function SignupPage() {
       setStep1Error('Password must be at least 8 characters.')
       return
     }
+
+    // Check if email is already registered
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email.trim().toLowerCase())
+      .maybeSingle()
+
+    if (existingProfile) {
+      setStep1Error('An account with this email already exists. Please sign in instead.')
+      return
+    }
+
     setStep(2)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -225,7 +269,14 @@ export default function SignupPage() {
         },
       })
 
-      if (authError) { setError(authError.message); return }
+      if (authError) {
+        if (authError.message?.toLowerCase().includes('already registered') || authError.status === 422) {
+          setError('An account with this email already exists. Please sign in instead.')
+        } else {
+          setError(authError.message)
+        }
+        return
+      }
 
       if (data?.user) {
         await supabase
@@ -288,7 +339,14 @@ export default function SignupPage() {
           },
         },
       })
-      if (authError) { setError(authError.message); return }
+      if (authError) {
+        if (authError.message?.toLowerCase().includes('already registered') || authError.status === 422) {
+          setError('An account with this email already exists. Please sign in instead.')
+        } else {
+          setError(authError.message)
+        }
+        return
+      }
 
       const userId = data?.user?.id
       if (!userId) { setError('Account creation failed. Please try again.'); return }
@@ -302,39 +360,39 @@ export default function SignupPage() {
       const { error: profileUpdateErr } = await supabase.from('profiles').update({ full_name: fullName, phone: phone.trim(), membership_type: selected }).eq('id', userId)
       if (profileUpdateErr) console.error('[Signup] profile update error:', profileUpdateErr.message)
 
-      // 4. Vault card via save-card Edge Function — delay lets Supabase replicate the upsert
-      await new Promise(r => setTimeout(r, 500))
-      await saveCard({ userId, token, email, displayName: fullName })
+      // 4. Create Square subscription (vaults card + creates subscription in one call)
+      const { data: { session: authSession } } = await supabase.auth.getSession()
+      const subResponse = await supabase.functions.invoke('create-subscription', {
+        body: {
+          planVariationId: PLAN_VARIATION_IDS[selected],
+          membershipType: selected,
+          cardToken: token,
+          email,
+          displayName: fullName,
+        },
+        headers: authSession?.access_token
+          ? { Authorization: `Bearer ${authSession.access_token}` }
+          : {},
+      })
 
-      // 5. Fetch fresh profile — square_customer_id / square_card_id written by Edge Function
-      const { data: freshProfile } = await supabase
-        .from('profiles')
-        .select('square_customer_id, square_card_id')
-        .eq('id', userId)
-        .single()
-
-      if (!freshProfile?.square_customer_id || !freshProfile?.square_card_id) {
-        console.warn('[Signup] square_customer_id or square_card_id missing after save-card')
-        setError('Account created! Card could not be saved — you can add it from your profile.')
-        setTimeout(() => navigate('/sessions', { replace: true }), 2000)
+      if (subResponse.error || !subResponse.data?.success) {
+        setError(subResponse.data?.error ?? subResponse.error?.message ?? 'Subscription setup failed. Please try again.')
         return
       }
 
-      // 6. Charge saved card for first month
-      console.log('[Signup] charging for membership:', selected, 'userId:', userId)
-      await chargeCardOnFile({
-        userId,
-        squareCustomerId: freshProfile.square_customer_id,
-        cardId: freshProfile.square_card_id,
-        amountCents: selectedPlan.amountCents,
-        description: `Four Winds ${selectedPlan.name} — first month`,
-        membershipType: selected,
-        paymentType: 'membership',
-      })
-
-      // 7. Sync profile state in AuthContext
-      // Wait for Edge Function to finish writing membership_type to profile
-      await new Promise(r => setTimeout(r, 2000))
+      // 7. Poll profile until membership_type is updated by the Edge Function
+      let attempts = 0
+      const maxAttempts = 20  // 20 × 250ms = 5 seconds max
+      while (attempts < maxAttempts) {
+        const { data: checkProfile } = await supabase
+          .from('profiles')
+          .select('membership_type')
+          .eq('id', userId)
+          .single()
+        if (checkProfile?.membership_type === selected) break
+        await new Promise(r => setTimeout(r, 250))
+        attempts++
+      }
       await refreshProfile()
       navigate('/sessions', { replace: true })
     } catch (err) {
@@ -497,7 +555,7 @@ export default function SignupPage() {
 
             {/* Plan cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {PLANS.map(plan => {
+              {VISIBLE_PLANS.map(plan => {
                 const isSelected = selected === plan.key
                 return (
                   <button

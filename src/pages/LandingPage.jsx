@@ -9,12 +9,12 @@ import Alert from '../components/ui/Alert.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../components/ui/FadeUp.jsx'
 import { supabase } from '../services/supabase.js'
-import { formatSessionDate, formatTime } from '../lib/dateUtils.js'
+import { formatSessionDate, formatTime, getLocalTodayString } from '../lib/dateUtils.js'
 
 // ─── Session picker ──────────────────────────────────────────────────────────
 
 function SessionCard({ session, selected, onSelect }) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const isToday = session.date === today
   const remaining = (session.total_seats ?? 32) - (session.reserved_count ?? 0)
   const isFull = remaining <= 0
@@ -151,7 +151,7 @@ export default function LandingPage() {
 
   // Fetch upcoming sessions (public)
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalTodayString()
     const weekOut = new Date()
     weekOut.setDate(weekOut.getDate() + 7)
     const weekOutStr = weekOut.toISOString().split('T')[0]

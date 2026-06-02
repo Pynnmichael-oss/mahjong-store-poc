@@ -1,7 +1,8 @@
 import { supabase } from './supabase.js'
+import { getLocalTodayString } from '../lib/dateUtils.js'
 
 export async function fetchUpcomingEvents() {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalTodayString()
   const { data, error } = await supabase
     .from('events')
     .select('*, event_rsvps(id, user_id, status)')
