@@ -10,7 +10,12 @@ import { MEMBERSHIP_CONFIG, getMembershipLabel, getMembershipBadgeClasses } from
 
 function TierBadge({ tier }) {
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(tier)}`}>
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(tier)}`}>
+      {tier === 'founding_member' && (
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M5 16L3 6l5.5 4L12 4l3.5 6L21 6l-2 10H5zm0 2h14v2H5v-2z"/>
+        </svg>
+      )}
       {getMembershipLabel(tier)}
     </span>
   )

@@ -72,7 +72,12 @@ function ScanSuccess({ data }) {
       </div>
       <p className="font-playfair text-navy text-3xl font-bold text-center">{name}</p>
       {membershipType && (
-        <span className={`inline-flex items-center px-3 py-1 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(membershipType)}`}>
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(membershipType)}`}>
+          {membershipType === 'founding_member' && (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 16L3 6l5.5 4L12 4l3.5 6L21 6l-2 10H5zm0 2h14v2H5v-2z"/>
+            </svg>
+          )}
           {getMembershipLabel(membershipType)}
         </span>
       )}
@@ -596,7 +601,12 @@ export default function SessionAttendeesPage() {
                           {name ?? '—'}
                         </span>
                         {memberTier && (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-sans text-[10px] font-medium ${getMembershipBadgeClasses(memberTier)}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-sans text-[10px] font-medium ${getMembershipBadgeClasses(memberTier)}`}>
+                            {memberTier === 'founding_member' && (
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M5 16L3 6l5.5 4L12 4l3.5 6L21 6l-2 10H5zm0 2h14v2H5v-2z"/>
+                              </svg>
+                            )}
                             {getMembershipLabel(memberTier)}
                           </span>
                         )}

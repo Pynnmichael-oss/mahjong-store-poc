@@ -73,15 +73,16 @@ export async function createMultiSeatReservation({
     throw error
   }
 
-  // Link payment record to primary reservation
+  // Link payment record to primary reservation (via SECURITY DEFINER RPC)
   if (paymentId && data?.length) {
     const primary = data.find(r => r.is_primary_seat)
     if (primary) {
-      const { error: payErr } = await supabase
-        .from('payments')
-        .update({ reference_id: primary.id })
-        .eq('id', paymentId)
-      if (payErr) console.error('[reservationService] failed to link payment:', payErr.message)
+      const { error: linkErr } = await supabase.rpc('link_payment_to_reservation', {
+        p_payment_id:     paymentId,
+        p_reservation_id: primary.id,
+        p_user_id:        userId,
+      })
+      if (linkErr) console.warn('[reservationService] payment link warning:', linkErr.message)
     }
   }
 

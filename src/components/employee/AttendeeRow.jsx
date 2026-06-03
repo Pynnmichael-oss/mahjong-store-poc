@@ -1,5 +1,5 @@
 import Badge from '../ui/Badge.jsx'
-import { getTableForSeat, getMembershipBadgeClasses, getMembershipLabel } from '../../lib/businessRules.js'
+import { getTableForSeat, getMembershipBadgeClasses, getMembershipLabel, BUDDY_PASS_ENABLED } from '../../lib/businessRules.js'
 
 import { getWeeklyLimit } from '../../lib/businessRules.js'
 
@@ -9,7 +9,7 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
   const tableInfo = seat ? getTableForSeat(seat.seat_number) : null
   const isAlt    = index % 2 === 1
   const isGuest        = reservation.is_guest === true
-  const isBuddyPass    = reservation.is_buddy_pass === true
+  const isBuddyPass    = BUDDY_PASS_ENABLED && reservation.is_buddy_pass === true
   const isDragonPass   = !isGuest && profile?.membership_type === 'dragon_pass'
   const memberTier     = !isGuest ? profile?.membership_type : null
   const name           = isGuest ? reservation.guest_name : profile?.full_name
@@ -35,7 +35,12 @@ export default function AttendeeRow({ reservation, onNoShow, onOverride, onPayCh
               Guest
             </span>
           ) : memberTier && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(memberTier)}`}>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(memberTier)}`}>
+              {memberTier === 'founding_member' && (
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5 16L3 6l5.5 4L12 4l3.5 6L21 6l-2 10H5zm0 2h14v2H5v-2z"/>
+                </svg>
+              )}
               {getMembershipLabel(memberTier)}
             </span>
           )}

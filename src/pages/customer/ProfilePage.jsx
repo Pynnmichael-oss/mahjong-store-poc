@@ -7,7 +7,7 @@ import { supabase } from '../../services/supabase.js'
 import { saveCard } from '../../services/cardService.js'
 import { changeSubscription, cancelSubscription, getPlanVariationId } from '../../services/subscriptionService.js'
 import { checkCancellationEligibility, cancelReservationWithRefund } from '../../services/reservationService.js'
-import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate, getWeeklyLimit, getTableForSeat } from '../../lib/businessRules.js'
+import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate, getWeeklyLimit, getTableForSeat, BUDDY_PASS_ENABLED } from '../../lib/businessRules.js'
 import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
 import { useWeeklySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
@@ -135,16 +135,29 @@ export default function ProfilePage() {
       setUpgradeError('Invalid plan selection')
       return
     }
+
+    // Always re-fetch profile from DB so any recently saved card is picked up
+    const { data: freshProfile } = await supabase
+      .from('profiles')
+      .select('subscription_id, square_customer_id, square_card_id, full_name')
+      .eq('id', user.id)
+      .single()
+
+    if (!freshProfile?.square_card_id || !freshProfile?.square_customer_id) {
+      setUpgradeError('Please add a payment method first. Use the "Add card" link in your profile, then try again.')
+      return
+    }
+
     try {
       await changeSubscription({
         userId:             user.id,
-        oldSubscriptionId:  profile?.subscription_id ?? null,
+        oldSubscriptionId:  freshProfile.subscription_id ?? null,
         newPlanVariationId,
         newMembershipType:  upgradePlan,
-        squareCustomerId:   profile?.square_customer_id,
-        squareCardId:       profile?.square_card_id,
+        squareCustomerId:   freshProfile.square_customer_id,
+        squareCardId:       freshProfile.square_card_id,
         email:              user.email,
-        displayName:        profile?.full_name ?? user.email,
+        displayName:        freshProfile.full_name ?? user.email,
       })
       setUpgradeSuccess(true)
       setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 2000)
@@ -366,7 +379,12 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
             <label className="block font-sans text-xs uppercase tracking-[3px] text-sky-mid mb-3">Membership</label>
             <div className="flex items-center gap-3 mb-1">
-              <span className={`inline-flex items-center px-4 py-1.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(membershipType)}`}>
+              <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-sans text-xs font-medium ${getMembershipBadgeClasses(membershipType)}`}>
+                {membershipType === 'founding_member' && (
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5 16L3 6l5.5 4L12 4l3.5 6L21 6l-2 10H5zm0 2h14v2H5v-2z"/>
+                  </svg>
+                )}
                 {config.label}
               </span>
             </div>
@@ -378,7 +396,7 @@ export default function ProfilePage() {
             {isDragonPass && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {[
-                  '🎟 2 Buddy Passes / Month',
+                  ...(BUDDY_PASS_ENABLED ? ['🎟 2 Buddy Passes / Month'] : []),
                   '⚡ Early Event Access',
                   '15% Event Discount',
                 ].map(label => (
@@ -523,7 +541,7 @@ export default function ProfilePage() {
         </FadeUp>
 
         {/* Buddy Passes — dragon_pass eligible */}
-        {isBuddyPassEligible(membershipType) && (
+        {BUDDY_PASS_ENABLED && isBuddyPassEligible(membershipType) && (
           <FadeUp delay={225}>
             <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
               {passLoading ? (

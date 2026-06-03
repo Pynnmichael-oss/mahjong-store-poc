@@ -5,8 +5,9 @@ import { saveCard, chargeCardOnFile } from '../../services/cardService.js'
 import { useAuth } from '../../context/AuthContext.jsx'
 import FloatingTiles from '../../components/layout/FloatingTiles.jsx'
 import Alert from '../../components/ui/Alert.jsx'
+import { BUDDY_PASS_ENABLED } from '../../lib/businessRules.js'
 
-const FOUNDING_WINDOW_END = '2025-06-04'
+const FOUNDING_WINDOW_END = '2026-06-04'
 const FOUNDING_MEMBER_ENABLED = new Date() <= new Date(FOUNDING_WINDOW_END + 'T23:59:59')
 
 const PLAN_VARIATION_IDS = {
@@ -27,9 +28,12 @@ const PLANS = [
     border: 'border-t-4 border-gold',
     selectedBorder: 'border-2 border-gold',
     btn: 'bg-navy text-sky hover:bg-navy-deep',
-    benefits: [
+    benefits: BUDDY_PASS_ENABLED ? [
       'Unlimited sessions — 7 days a week',
       '2 buddy passes per month',
+      '15% off events + early access',
+    ] : [
+      'Unlimited sessions — 7 days a week',
       '15% off events + early access',
     ],
   },
@@ -87,9 +91,13 @@ const PLANS = [
     selectedBorder: 'border-2 border-gold',
     btn: 'bg-gold text-navy hover:bg-gold/90',
     badge: 'Founding',
-    benefits: [
+    benefits: BUDDY_PASS_ENABLED ? [
       'Unlimited sessions — charter recognition',
       '2 buddy passes per month',
+      '15% off events + early access',
+      'Exclusive founding member badge',
+    ] : [
+      'Unlimited sessions — charter recognition',
       '15% off events + early access',
       'Exclusive founding member badge',
     ],
@@ -319,8 +327,19 @@ export default function SignupPage() {
     try {
       // 1. Tokenize card
       const result = await signupCardRef.current.tokenize()
+      console.log('[Signup] tokenize result:', result)
       if (result.status !== 'OK') {
-        setError(result.errors?.[0]?.message ?? 'Card validation failed')
+        console.log('[Signup] tokenize FAILED — errors:', result.errors)
+        const cardErr = result.errors?.[0]?.message ?? 'Card validation failed'
+        setError(`Card validation failed: ${cardErr}. Please try a different card.`)
+        // Reset card form so they can retry
+        try {
+          await signupCardRef.current?.destroy?.()
+        } catch {}
+        signupCardRef.current = null
+        setSignupCardReady(false)
+        setStep(2)
+        setTimeout(() => setStep(3), 50)
         return
       }
       const token = result.token
@@ -376,7 +395,23 @@ export default function SignupPage() {
       })
 
       if (subResponse.error || !subResponse.data?.success) {
-        setError(subResponse.data?.error ?? subResponse.error?.message ?? 'Subscription setup failed. Please try again.')
+        const rawError = subResponse.data?.error ?? subResponse.error?.message ?? 'Payment could not be processed.'
+        // Surface a more helpful message for common card decline cases
+        const isDeclined = /declin|insufficient|cvv|expired|card.*not.*support/i.test(rawError)
+        setError(
+          isDeclined
+            ? `Your card was declined: ${rawError}. Please try a different card.`
+            : `${rawError} Please try again or contact support.`
+        )
+        // Re-initialize the card form so the user can enter new details
+        try {
+          await signupCardRef.current?.destroy?.()
+        } catch {}
+        signupCardRef.current = null
+        setSignupCardReady(false)
+        // Trigger Square SDK re-init by toggling step
+        setStep(2)
+        setTimeout(() => setStep(3), 50)
         return
       }
 

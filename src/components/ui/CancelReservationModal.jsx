@@ -177,6 +177,26 @@ export default function CancelReservationModal({
                   )}
 
                   <p className="font-sans text-sm text-text-mid">Select which seats to cancel:</p>
+
+                  {(() => {
+                    const primarySeat = groupSeats.find(s => s.isPrimary)
+                    const primarySelected = primarySeat ? selectedIds.has(primarySeat.reservationId) : false
+                    const guestSeatsSelected = Array.from(selectedIds).some(id => {
+                      const seat = groupSeats.find(s => s.reservationId === id)
+                      return seat && !seat.isPrimary
+                    })
+                    // Only show this notice if cancelling guest seats only (not the primary)
+                    // AND outside the 24-hour window (otherwise no refund would apply anyway)
+                    const eligibleForRefund = Object.values(eligibilities).some(e => e?.eligible && e?.hours_until >= 24 && e?.refundable)
+                    return !primarySelected && guestSeatsSelected && eligibleForRefund ? (
+                      <div className="bg-sky-light/40 border border-sky-mid/20 rounded-xl px-4 py-3">
+                        <p className="font-cormorant italic text-navy text-base leading-relaxed">
+                          Refunds for individual guest seats are processed at the front counter. Please see staff after your session for your refund.
+                        </p>
+                      </div>
+                    ) : null
+                  })()}
+
                   <div className="space-y-2">
                     {groupSeats.map(seat => {
                       const checked = selectedIds.has(seat.reservationId)

@@ -6,6 +6,8 @@ export const SESSION_WALK_IN_RATE_CENTS = 1500  // $15.00
 export const MAX_SEATS_PER_BOOKING      = 4
 export const GUEST_SEAT_RATE_CENTS      = 1500  // $15 per guest seat
 
+export const BUDDY_PASS_ENABLED = false
+
 // ─── Seat / table helpers ─────────────────────────────────────────────────────
 
 export const TABLE_NAMES = [
@@ -52,11 +54,11 @@ export const MEMBERSHIP_CONFIG = {
     label:          'Dragon Pass',
     price:          '$149.99/mo',
     priceCents:     14999,
-    description:    'Unlimited sessions + 2 buddy passes',
+    description:    BUDDY_PASS_ENABLED ? 'Unlimited sessions + 2 buddy passes' : 'Unlimited sessions',
     color:          'gold',
     weeklyLimit:    null,
     monthlyLimit:   null,
-    buddyPasses:    2,
+    buddyPasses:    BUDDY_PASS_ENABLED ? 2 : 0,
     earlyEvents:    true,
     eventDiscount:  0.15,
     requiresPaymentPerSession: false,
@@ -108,7 +110,7 @@ export const MEMBERSHIP_CONFIG = {
     color:          'gold',
     weeklyLimit:    null,
     monthlyLimit:   null,
-    buddyPasses:    2,
+    buddyPasses:    BUDDY_PASS_ENABLED ? 2 : 0,
     earlyEvents:    true,
     eventDiscount:  0.15,
     requiresPaymentPerSession: false,
@@ -123,6 +125,10 @@ export function getMembershipLabel(type) {
   return getMembershipConfig(type).label
 }
 
+export function isFoundingMember(type) {
+  return type === 'founding_member'
+}
+
 export function getMembershipDescription(type) {
   return getMembershipConfig(type).description
 }
@@ -134,7 +140,7 @@ export function getMembershipBadgeClasses(type) {
     flower_pass:       'bg-sky-light text-navy border border-sky-mid/30',
     bamboo_pass:       'bg-[#EAF3DE] text-[#27500A] border border-[#3B6D11]',
     four_winds_member: 'bg-navy text-sky',
-    founding_member:   'bg-gold text-navy border-2 border-navy/20',
+    founding_member:   'bg-navy text-gold',
   }
   return map[type] ?? map.four_winds_member
 }
