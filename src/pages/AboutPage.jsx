@@ -625,6 +625,15 @@ export default function AboutPage() {
                 {label}
               </button>
             ))}
+            <Link to="/privacy" className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
+              Privacy
+            </Link>
+            <Link to="/terms" className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
+              Terms
+            </Link>
+            <a href="mailto:fourwindstulsa@gmail.com" className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
+              Contact
+            </a>
             {!user && (
               <Link to="/login" className="font-sans text-sm text-sky/40 hover:text-sky/70 transition-colors">
                 Sign In

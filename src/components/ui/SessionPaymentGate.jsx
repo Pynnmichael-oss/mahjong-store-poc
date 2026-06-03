@@ -381,6 +381,9 @@ export default function SessionPaymentGate({
 
         {error && <Alert type="error">{error}</Alert>}
 
+        <p className="font-cormorant italic text-text-soft text-xs text-center mb-2">
+          Cancel 24+ hours before the session for a full refund.
+        </p>
         <div className="flex gap-3">
           <button
             onClick={onCancel}
@@ -441,6 +444,9 @@ export default function SessionPaymentGate({
           </p>
         )}
 
+        <p className="font-cormorant italic text-text-soft text-xs text-center mb-2">
+          Cancel 24+ hours before the session for a full refund.
+        </p>
         <div className="flex gap-3">
           <button
             type="button"

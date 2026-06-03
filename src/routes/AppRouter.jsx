@@ -19,12 +19,16 @@ import MembersPage from '../pages/employee/MembersPage.jsx'
 import EmployeeSessionsPage from '../pages/employee/EmployeeSessionsPage.jsx'
 import ReportsPage from '../pages/employee/ReportsPage.jsx'
 import KioskPage from '../pages/KioskPage.jsx'
+import PrivacyPage from '../pages/PrivacyPage.jsx'
+import TermsPage from '../pages/TermsPage.jsx'
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<AboutPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="/kiosk" element={<KioskPage />} />
         <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route path="/signup" element={<PublicOnlyRoute><SignupPage /></PublicOnlyRoute>} />
