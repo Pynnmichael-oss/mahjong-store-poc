@@ -32,8 +32,9 @@ VITE_SQUARE_LOCATION_ID=your-square-location-id
 - **Deployment:** Netlify only — never run `npm run deploy` or touch gh-pages config
 
 **Routes** (`src/routes/AppRouter.jsx`):
-- Public: `/` (AboutPage), `/kiosk` (no auth guard — intentional)
-- `PublicOnlyRoute`: `/login`, `/signup`
+- Public (no auth): `/` (AboutPage), `/privacy`, `/terms`, `/kiosk` (no auth guard — intentional)
+- `PublicOnlyRoute`: `/login`, `/signup`, `/forgot-password`
+- `/reset-password` — **not** wrapped in PublicOnlyRoute (email recovery links arrive with a temporary session; wrapping would redirect them away)
 - `ProtectedRoute` (any logged-in user): `/dashboard`, `/sessions`, `/sessions/:id/reserve`, `/events`, `/my-qr`, `/history`, `/profile`
 - `EmployeeRoute`: `/employee`, `/employee/sessions`, `/employee/sessions/:id`, `/employee/events`, `/employee/members`, `/employee/reports`
 
@@ -50,31 +51,44 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 **Components** in `src/components/` are organized by domain: `seats/` (SeatButton, SeatMap, TableDisplay), `sessions/` (SessionCard, SessionList), `employee/` (AttendeeRow, AttendeeTable, WalkInForm, SessionCreateModal, etc.), `reservations/` (OverageFlagBanner, ReservationSummary, ReservationStatusBadge), `events/` (EventCard, EventForm, EventList, EventRSVPButton), `checkin/` (CameraScanner, QRCodeDisplay, QRScanInput), `ui/` (shared primitives), `layout/` (Header, CustomerHeader, PageWrapper, FloatingTiles, WaveDivider).
 
 **Business rules** (`src/lib/businessRules.js`):
+- **Feature flag:** `BUDDY_PASS_ENABLED = false` — gates all buddy pass UI and logic. Set to `true` to re-enable everywhere at once.
 - **Membership tiers** (canonical keys in `MEMBERSHIP_CONFIG`):
-  - `dragon_pass` — $149.99/mo, unlimited, 2 buddy passes/mo, early event access, 15% event discount
+  - `dragon_pass` — $149.99/mo, unlimited, early event access, 15% event discount. Buddy passes: 2 when `BUDDY_PASS_ENABLED`, else 0.
   - `flower_pass` — $79.99/mo, 2 sessions/week (`weeklyLimit: 2`), $15 overage per extra session
   - `bamboo_pass` — $49.99/mo, 1 session/week (`weeklyLimit: 1`), $15 overage per extra session
   - `four_winds_member` — Free account, $15 per session
+  - `founding_member` — $120/mo, unlimited, charter recognition, early events, 15% discount. Buddy passes: 2 when `BUDDY_PASS_ENABLED`, else 0. Filtered out of the plan-change picker for existing members. Signup window ends 2026-06-04.
 - `walk_in` membership type is **retired** — migrated to `four_winds_member`. `walk_in` still exists as a reservation STATUS (unchanged).
 - `getMembershipConfig(unknownType)` falls back to `four_winds_member`
+- `getMembershipBadgeClasses(type)` — returns Tailwind classes. `founding_member` uses `bg-navy text-gold` (navy background, gold text) with a crown SVG icon rendered inline wherever the badge appears.
+- `isFoundingMember(type)` — returns `true` if type is `'founding_member'`; use this to conditionally render the crown icon.
 - Weekly limit is Mon–Sun anchored to the **session's date**, not the current week. `getWeekBoundariesForDate(dateStr)` in `src/lib/dateUtils.js` computes Mon–Sun from a `YYYY-MM-DD` string; `getWeekBoundaries()` (current week) is still exported for other uses
 - `countPlaysForSessionWeek(reservations, sessionDate)` — filters `is_primary_seat: true` reservations and counts those falling in the session's week. Pass `sessionDate` (YYYY-MM-DD) when booking; omit to fall back to current week
 - Overage flag: `shouldFlagOverage(membershipType, weeklyCount)` — returns true when weekly count ≥ weekly limit
-- `useWeeklyLimit(reservations, membershipType, sessionDate?)` (`src/hooks/useWeeklyLimit.js`) — convenience hook that wraps both of the above; returns `{ checkedInCount, isOverLimit }`
-- `useWeeklySessionCount()` (`src/hooks/useMonthlySessionCount.js`) — for display only (profile, header); queries the current Mon–Sun week. Exported as `useMonthlySessionCount` for backward compat — use `useWeeklySessionCount` for new code
-- `useFillRateReport(startDate, endDate)` (`src/hooks/useReports.js`) — fetches sessions in a date range and their reservations; returns `{ data: [{ session, reservations }], loading, error }`; used by `ReportsPage`
-- `useGuestBooking()` (`src/hooks/useGuestBooking.js`) — multi-step wizard state for the public guest landing page; tracks `step` (1 | 2 | 3 | 'confirmed'), selected session/seat, guest name/phone; exposes `selectSession`, `selectSeat`, `submitBooking`, `reset`, `backToSessions`, `backToSeats`
+- `useWeeklyLimit(reservations, membershipType, sessionDate?)` (`src/hooks/useWeeklyLimit.js`) — convenience hook; returns `{ checkedInCount, isOverLimit }`
+- `useWeeklySessionCount()` (`src/hooks/useMonthlySessionCount.js`) — for display only; exported as `useMonthlySessionCount` for backward compat — use `useWeeklySessionCount` for new code
+- `useFillRateReport(startDate, endDate)` (`src/hooks/useReports.js`) — returns `{ data: [{ session, reservations }], loading, error }`
+- `useGuestBooking()` (`src/hooks/useGuestBooking.js`) — multi-step wizard state for the public guest landing page
 - Check-in window: 15 minutes from session start time
 - Seats are grouped into 8 tables (Table 1–8), 4 seats each — `getTableForSeat(seatNumber)` maps seat numbers to tables
 - Use `getMembershipConfig(type)` for all tier lookups; `MEMBERSHIP_TIERS` is a backward-compat alias
 
 **Booking** (`src/services/reservationService.js`):
-- Multi-seat booking uses the `reserve_seats` Supabase RPC (not direct inserts) — call it instead of `supabase.from('reservations').insert(...)` for new bookings
+- Multi-seat booking uses the `reserve_seats` Supabase RPC (not direct inserts)
+- Payment linking uses the `link_payment_to_reservation` SECURITY DEFINER RPC — not a direct `payments` table update
 - Active reservation statuses for duplicate-check purposes: `['confirmed', 'walk_in', 'checked_in']` — `cancelled` is always excluded
 
 **Buddy passes** (`src/services/buddyPassService.js`):
-- Dragon Pass members get 2 guest passes/month, stored in `buddy_passes` table
+- Currently disabled behind `BUDDY_PASS_ENABLED = false`
+- When enabled: Dragon Pass members get 2 guest passes/month, stored in `buddy_passes` table
 - Flow: `getOrCreateBuddyPass` (RPC) → member shares 6-char code → guest uses `checkBuddyPassCode` to validate → `redeemBuddyPass` (RPC) books seat and decrements `used_count`
+
+**Subscriptions** (`src/services/subscriptionService.js`):
+- `getPlanVariationId(membershipType)` — returns the production Square plan variation ID for a given tier
+- `createSubscription({ planVariationId, membershipType, cardToken, email, displayName })` — invokes `create-subscription` Edge Function
+- `cancelSubscription({ subscriptionId })` — invokes `cancel-subscription` Edge Function
+- `changeSubscription({ userId, oldSubscriptionId, newPlanVariationId, newMembershipType, squareCustomerId, squareCardId, email, displayName })` — cancels old sub then creates new one reusing card on file
+- Production Square plan variation IDs are stored here (not sandbox). Do not replace with sandbox IDs.
 
 **Check-in and walk-in** (`src/services/attendanceService.js`):
 - `processQRCheckin(userId, sessionId)` — employee-side QR scan flow: validates reservation, enforces 15-min check-in window, calls `checkInReservation`
@@ -86,37 +100,44 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 
 **Booking cost** (`src/lib/calculateBookingCost.js`):
 - `calculateBookingCost({ membershipType, seatCount, weeklySessionsUsed })` — returns `{ ownSeatCost, guestSeatCost, totalCents, extraSeats, isFree, isOverage }` in cents
-- Extra seats (beyond the member's own) are always $15 for all membership types. Dragon Pass members use the buddy pass flow (separate system) for free guests — not a cost override here.
-- Use this instead of computing costs inline
+- Extra seats (beyond the member's own) are always $15. Use this instead of computing costs inline.
 
 **Payments** (`src/services/paymentService.js`):
 - Card payments go through `square-payment` Supabase Edge Function via `chargeCard()`
 - Used for walk-in fees and overage charges; passes `reservationId` or `membershipType` for tracking
 
 **Supabase Edge Functions** (`supabase/functions/`):
-- All four functions use a shared `verifyAuth(req)` helper that validates the Bearer JWT, returns `{ userId, role }`, and throws on failure — the caller returns a 401.
+- All auth-required functions use a shared `verifyAuth(req)` helper that validates the Bearer JWT, returns `{ userId, role }`, and throws on failure — the caller returns a 401.
 - `square-payment/` — processes Square card charges (one-time or card-on-file via `squareCustomerId`/`cardId`)
 - `save-card/` — tokenises and vaults a Square card; stores `square_customer_id` + `square_card_id` on `profiles`
 - `send-sms/` — sends SMS confirmations to guests
 - `square-refund/` — issues a Square refund and updates the `payments` row (`status: 'refunded'`, `square_refund_id`, `refunded_at`, `refunded_by`)
+- `create-subscription/` — creates a Square subscription. Accepts `existingCustomerId` to reuse a stored Square customer + card-on-file (`ccof:` prefix) instead of creating new ones. Updates `profiles` with `subscription_id`, `subscription_status`, `subscription_plan_id`, `next_billing_date`.
+- `square-webhook/` — receives Square webhook events. Verifies HMAC-SHA256 signature using `SQUARE_WEBHOOK_SIGNATURE_KEY` + `SQUARE_WEBHOOK_URL` env vars. Handles: `subscription.updated` (status changes, cancellation scheduling), `invoice.scheduled_charge_failed` (marks `past_due`), `invoice.payment_made` (marks `active`). Requires `SQUARE_WEBHOOK_SIGNATURE_KEY` and `SQUARE_WEBHOOK_URL` secrets set in Supabase.
+
+**Square environment:** Production. Secrets set in Supabase: `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_ENV=production`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_WEBHOOK_URL`.
 
 **Saved-card flow** (`src/services/cardService.js`):
 - `getSavedCard(userId)` — reads `square_customer_id` / `square_card_id` from `profiles`
 - `saveCard({ userId, token, email, displayName })` → invokes `save-card` Edge Function → returns `{ squareCardId, squareCustomerId, cardLast4, cardBrand }`
 - `chargeCardOnFile({ userId, squareCustomerId, cardId, amountCents, … })` → invokes `square-payment` with stored card credentials
-- `SessionPaymentGate` (`src/components/ui/SessionPaymentGate.jsx`) orchestrates the full reservation-time payment UX: checks if payment is required, shows saved card or Square card entry form, then calls `onPaymentComplete(paymentId | null)`. Accepts `onPaymentFailed` prop — called on any payment error so the caller can release seats and reset UI. Uses `useRef` (not `useState`) for double-tap guard to avoid re-render races.
+- `SessionPaymentGate` (`src/components/ui/SessionPaymentGate.jsx`) orchestrates the full reservation-time payment UX: checks if payment is required, shows saved card or Square card entry form, then calls `onPaymentComplete(paymentId | null)`. Accepts `onPaymentFailed` prop — called on any payment error so the caller can release seats and reset UI. Uses `useRef` (not `useState`) for double-tap guard to avoid re-render races. Shows a "Cancel 24+ hours before the session for a full refund" notice above both Pay buttons.
 
 **Cancellation and refund flow:**
 - `checkCancellationEligibility(reservationId, userId)` in `cancellationService.js` calls the `get_cancellation_eligibility` Supabase RPC — returns `{ eligible, refundable, refund_amount, square_payment_id, hours_until, … }`
 - `cancelReservation({ reservationId, groupId, cancelWholeGroup, userId })` in `cancellationService.js` — delegates to `cancel_reservation_with_refund` RPC (`p_is_employee: false`) which handles seat release server-side; group cancellations iterate each reservation through the same RPC
 - `processRefund({ squarePaymentId, amountCents })` in `cancellationService.js` — invokes the `square-refund` Edge Function, forwarding the user's Supabase auth token
-- `CancelReservationModal` (`src/components/ui/CancelReservationModal.jsx`) — three display states: within 24-hour window (no refund), outside window with free booking, outside window with paid refund. Group-booking toggle shown for group reservations outside the 24-hour window.
+- `CancelReservationModal` (`src/components/ui/CancelReservationModal.jsx`) — seat checkbox list with per-seat eligibility. Shows a front-counter refund notice when cancelling guest seats only (primary not selected) outside the 24-hour window. Selecting the primary seat auto-selects all guest seats (guests can't attend without the member).
 - Cancellation window: **24 hours** before session start. Cancellations within this window are not refundable.
-- `get_cancellation_eligibility` RPC SQL is documented in the comment block at the top of `cancellationService.js`. `cancel_reservation_with_refund` RPC SQL is **not** in the codebase — it must be created separately in the Supabase SQL editor.
+- `get_cancellation_eligibility` RPC SQL is documented in the comment block at the top of `cancellationService.js`. `cancel_reservation_with_refund` and `link_payment_to_reservation` RPCs are **not** in the codebase — they must be created separately in the Supabase SQL editor.
 - The `payments` table requires three columns added via SQL: `square_refund_id TEXT`, `refunded_at TIMESTAMPTZ`, `refunded_by UUID REFERENCES auth.users(id)`.
 
+**Password reset flow:**
+- `/forgot-password` is wrapped in `PublicOnlyRoute`
+- `/reset-password` is NOT wrapped — email recovery links create a temporary Supabase session, so the user is technically "logged in" when they land. After a successful reset, `supabase.auth.signOut()` is called to clear the temporary session before redirecting to `/login`.
+
 **Database schema (key tables):**
-- `profiles` — extends `auth.users`; `role`, `membership_type`, `is_active`, `member_number`
+- `profiles` — extends `auth.users`; `role`, `membership_type`, `is_active`, `member_number`, `square_customer_id`, `square_card_id`, `subscription_id`, `subscription_status`, `subscription_plan_id`, `next_billing_date`, `subscription_cancel_at`
 - `sessions` — `date`, `start_time`, `end_time`, `total_seats`, `status`
 - `seats` — `session_id`, `seat_number`, `status` (available/reserved/occupied)
 - `reservations` — `user_id`, `session_id`, `seat_id`, `status` (confirmed/checked_in/no_show/cancelled/walk_in), `is_flagged_overage`, `is_walk_in`, `is_primary_seat` (true for the member's own seat, false for extra/guest seats), `membership_type_at_booking`, `override_by`, `override_at`, `group_reservation_id`

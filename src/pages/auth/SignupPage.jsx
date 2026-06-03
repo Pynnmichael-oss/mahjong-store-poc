@@ -11,10 +11,10 @@ const FOUNDING_WINDOW_END = '2026-06-04'
 const FOUNDING_MEMBER_ENABLED = new Date() <= new Date(FOUNDING_WINDOW_END + 'T23:59:59')
 
 const PLAN_VARIATION_IDS = {
-  dragon_pass:     'OLMGLGNESDB2LNOOACKJLB3S',
-  flower_pass:     'EMTGGV4RRQAIHZ5ZYC6WWRX4',
-  bamboo_pass:     'IHNAVMMGCZCZIOP75MINXF5Z',
-  founding_member: 'XSEGNYO36QFU6PLVQLQ5FSIN',
+  dragon_pass:     'O7QJ2JIFOVYXSN7CKGX2QYZC',
+  flower_pass:     'ASVZPQDTUJOHD3N7FNCEYOZD',
+  bamboo_pass:     'G2ISJEPAD7NKE42NHM3IMCHU',
+  founding_member: '2HJBZ7GAXZXFV5ME3TIZQ65Q',
 }
 
 // ─── Membership plan definitions (signup-specific) ────────────────────────────
