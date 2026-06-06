@@ -9,13 +9,14 @@ export function calculateBookingCost({ membershipType, seatCount, weeklySessions
   const extraSeats = seatCount - 1
 
   let ownSeatCost = 0
-  if (membershipType === 'dragon_pass') {
+  if (config.requiresPaymentPerSession === false && config.weeklyLimit === null) {
+    // Unlimited-play tiers (dragon_pass, founding_member) — always free for own seat
     ownSeatCost = 0
   } else if (config.weeklyLimit !== null) {
     // flower_pass or bamboo_pass — free within weekly limit, $15 overage
     ownSeatCost = weeklySessionsUsed >= config.weeklyLimit ? SESSION_WALK_IN_RATE_CENTS : 0
   } else {
-    // four_winds_member — always pays
+    // four_winds_member — always pays per session
     ownSeatCost = SESSION_WALK_IN_RATE_CENTS
   }
 

@@ -89,6 +89,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `cancelSubscription({ subscriptionId })` — invokes `cancel-subscription` Edge Function
 - `changeSubscription({ userId, oldSubscriptionId, newPlanVariationId, newMembershipType, squareCustomerId, squareCardId, email, displayName })` — cancels old sub then creates new one reusing card on file
 - Production Square plan variation IDs are stored here (not sandbox). Do not replace with sandbox IDs.
+- **`src/pages/auth/SignupPage.jsx` has its own local `PLAN_VARIATION_IDS` constant** (used during signup flow) — keep it in sync with `subscriptionService.js`. Both are currently set to production IDs.
 
 **Check-in and walk-in** (`src/services/attendanceService.js`):
 - `processQRCheckin(userId, sessionId)` — employee-side QR scan flow: validates reservation, enforces 15-min check-in window, calls `checkInReservation`
@@ -146,6 +147,8 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `events` / `event_rsvps` — event listings and RSVP tracking
 
 `seed.sql` in the repo root seeds Supabase with 5 test users (password: `password123`): 4 four_winds_members and 1 employee (`employee@mahjongstore.com`).
+
+`pre_production_cutover_backup.sql` in the repo root is a pre-launch database snapshot — do not delete it.
 
 ## Kiosk Mode
 

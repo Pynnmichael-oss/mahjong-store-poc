@@ -105,7 +105,7 @@ export default function SessionPaymentGate({
     }
 
     // Pre-fetch saved card for any member who might need to pay
-    if (type !== 'dragon_pass') {
+    if (type !== 'dragon_pass' && type !== 'founding_member') {
       const card = await getSavedCard(profile.id)
       setSavedCard(card?.square_card_id ? card : null)
     }
