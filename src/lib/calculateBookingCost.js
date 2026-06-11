@@ -1,8 +1,13 @@
 import { getMembershipConfig, SESSION_WALK_IN_RATE_CENTS, GUEST_SEAT_RATE_CENTS } from './businessRules.js'
 
-export function calculateBookingCost({ membershipType, seatCount, weeklySessionsUsed = 0 }) {
+export function calculateBookingCost({ membershipType, seatCount, weeklySessionsUsed = 0, unlimitedFreeBooking = false }) {
   if (!seatCount || seatCount === 0) {
     return { ownSeatCost: 0, guestSeatCost: 0, totalCents: 0, extraSeats: 0, isFree: true, isOverage: false }
+  }
+
+  // Comp accounts — bypass all booking fees entirely (own seat + guests)
+  if (unlimitedFreeBooking) {
+    return { ownSeatCost: 0, guestSeatCost: 0, totalCents: 0, extraSeats: seatCount - 1, isFree: true, isOverage: false }
   }
 
   const config     = getMembershipConfig(membershipType)

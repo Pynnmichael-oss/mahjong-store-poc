@@ -130,7 +130,14 @@ export async function addSeatsToBooking({
       .eq('is_primary_seat', true)
   }
 
-  await Promise.all(newReservations.map(r => updateSeatStatus(r.seat_id, 'reserved')))
+  const seatUpdateResults = await Promise.allSettled(
+    newReservations.map(r => updateSeatStatus(r.seat_id, 'reserved'))
+  )
+  const failedUpdates = seatUpdateResults.filter(r => r.status === 'rejected')
+  if (failedUpdates.length > 0) {
+    console.error('[reservationService] seat status update failed for added seats:', failedUpdates)
+    throw new Error('Seats were reserved but seat status failed to update. Please contact staff.')
+  }
 
   if (paymentId && data?.[0]) {
     const { error: payErr } = await supabase

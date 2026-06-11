@@ -77,6 +77,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - Multi-seat booking uses the `reserve_seats` Supabase RPC (not direct inserts)
 - Payment linking uses the `link_payment_to_reservation` SECURITY DEFINER RPC — not a direct `payments` table update
 - Active reservation statuses for duplicate-check purposes: `['confirmed', 'walk_in', 'checked_in']` — `cancelled` is always excluded
+- `addSeatsToBooking` updates seat status to `'reserved'` for each newly added seat via `Promise.allSettled`; if any seat status update fails, it throws ("Seats were reserved but seat status failed to update. Please contact staff.") even though the reservation rows were already created
 
 **Buddy passes** (`src/services/buddyPassService.js`):
 - Currently disabled behind `BUDDY_PASS_ENABLED = false`

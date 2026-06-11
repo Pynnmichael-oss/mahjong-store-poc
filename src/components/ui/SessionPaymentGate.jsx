@@ -60,9 +60,10 @@ export default function SessionPaymentGate({
     return checking
       ? { totalCents: 0, ownSeatCost: 0, guestSeatCost: 0, extraSeats: 0, isFree: true, isOverage: false }
       : calculateBookingCost({
-          membershipType:    type,
-          seatCount:         selectedSeats.length,
+          membershipType:        type,
+          seatCount:             selectedSeats.length,
           weeklySessionsUsed,
+          unlimitedFreeBooking:  profile?.unlimited_free_booking === true,
         })
   })()
 
