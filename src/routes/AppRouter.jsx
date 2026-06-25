@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
+import { useEffect } from 'react'
 import { ProtectedRoute, EmployeeRoute, PublicOnlyRoute } from './ProtectedRoute.jsx'
 import AboutPage from '../pages/AboutPage.jsx'
 import LoginPage from '../pages/auth/LoginPage.jsx'
@@ -22,9 +23,23 @@ import KioskPage from '../pages/KioskPage.jsx'
 import PrivacyPage from '../pages/PrivacyPage.jsx'
 import TermsPage from '../pages/TermsPage.jsx'
 
+function RouteChangeTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'page_view', {
+        page_path: location.pathname + location.search,
+        page_location: window.location.href,
+      })
+    }
+  }, [location])
+  return null
+}
+
 export default function AppRouter() {
   return (
     <BrowserRouter>
+      <RouteChangeTracker />
       <Routes>
         <Route path="/" element={<AboutPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
