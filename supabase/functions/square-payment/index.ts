@@ -166,7 +166,7 @@ serve(async (req) => {
     }
 
     // Update membership_type and membership_paid_until on the user's profile
-    if (authedUserId && membershipType) {
+    if (authedUserId && membershipType && paymentType === 'membership') {
       const paidUntil = new Date()
       paidUntil.setMonth(paidUntil.getMonth() + 1)
 
