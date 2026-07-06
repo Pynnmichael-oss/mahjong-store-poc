@@ -169,6 +169,7 @@ export default function SignupPage() {
 
   // Step 3 Square card state
   const signupCardRef                 = useRef(null)
+  const submitLockRef                 = useRef(false)
   const [signupCardReady, setSignupCardReady] = useState(false)
   const [signupCardError, setSignupCardError] = useState(null)
 
@@ -260,6 +261,8 @@ export default function SignupPage() {
 
   // ── Free-plan account creation ─────────────────────────────────────────────
   async function handleCreate() {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
     setLoading(true)
     setError(null)
     const fullName = `${firstName.trim()} ${lastName.trim()}`
@@ -313,6 +316,7 @@ export default function SignupPage() {
 
       navigate('/dashboard', { replace: true })
     } finally {
+      submitLockRef.current = false
       setLoading(false)
     }
   }
@@ -320,7 +324,8 @@ export default function SignupPage() {
   // ── Paid-plan: signup + save card + charge ─────────────────────────────────
   async function handleSignupAndPay(e) {
     e.preventDefault()
-    if (!signupCardRef.current || loading) return
+    if (!signupCardRef.current || submitLockRef.current) return
+    submitLockRef.current = true
     setLoading(true)
     setError(null)
 
@@ -433,6 +438,7 @@ export default function SignupPage() {
     } catch (err) {
       setError(err?.message ?? 'Something went wrong. Please try again.')
     } finally {
+      submitLockRef.current = false
       setLoading(false)
     }
   }

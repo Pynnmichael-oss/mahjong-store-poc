@@ -86,6 +86,7 @@ export default function ProfilePage() {
   const [upgradeStep, setUpgradeStep] = useState('choose')   // 'choose' | 'pay'
   const [upgradeError, setUpgradeError] = useState(null)
   const [upgradeSuccess, setUpgradeSuccess] = useState(false)
+  const [upgrading, setUpgrading] = useState(false)
 
   // ── Card management ────────────────────────────────────────────────────────
   const [showCardModal, setShowCardModal] = useState(false)
@@ -93,6 +94,7 @@ export default function ProfilePage() {
   const [cardModalError, setCardModalError] = useState(null)
   const [savedCardDisplay, setSavedCardDisplay] = useState(null) // { cardLast4, cardBrand } after save
   const cardFieldRef = useRef(null)
+  const submitLockRef = useRef(false)
   const [cardFieldReady, setCardFieldReady] = useState(false)
   const [cardFieldError, setCardFieldError] = useState(null)
 
@@ -112,6 +114,9 @@ export default function ProfilePage() {
   }
 
   async function handleFreePlanChange() {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
+    setUpgrading(true)
     setUpgradeError(null)
     try {
       // Schedule cancellation at period end — keeps access until next billing date
@@ -125,30 +130,36 @@ export default function ProfilePage() {
       setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 2500)
     } catch (err) {
       setUpgradeError(err.message ?? 'Plan change failed')
+    } finally {
+      submitLockRef.current = false
+      setUpgrading(false)
     }
   }
 
   async function handleConfirmPaidChange() {
+    if (submitLockRef.current) return
+    submitLockRef.current = true
+    setUpgrading(true)
     setUpgradeError(null)
-    const newPlanVariationId = getPlanVariationId(upgradePlan)
-    if (!newPlanVariationId) {
-      setUpgradeError('Invalid plan selection')
-      return
-    }
-
-    // Always re-fetch profile from DB so any recently saved card is picked up
-    const { data: freshProfile } = await supabase
-      .from('profiles')
-      .select('subscription_id, square_customer_id, square_card_id, full_name')
-      .eq('id', user.id)
-      .single()
-
-    if (!freshProfile?.square_card_id || !freshProfile?.square_customer_id) {
-      setUpgradeError('Please add a payment method first. Use the "Add card" link in your profile, then try again.')
-      return
-    }
-
     try {
+      const newPlanVariationId = getPlanVariationId(upgradePlan)
+      if (!newPlanVariationId) {
+        setUpgradeError('Invalid plan selection')
+        return
+      }
+
+      // Always re-fetch profile from DB so any recently saved card is picked up
+      const { data: freshProfile } = await supabase
+        .from('profiles')
+        .select('subscription_id, square_customer_id, square_card_id, full_name')
+        .eq('id', user.id)
+        .single()
+
+      if (!freshProfile?.square_card_id || !freshProfile?.square_customer_id) {
+        setUpgradeError('Please add a payment method first. Use the "Add card" link in your profile, then try again.')
+        return
+      }
+
       await changeSubscription({
         userId:             user.id,
         oldSubscriptionId:  freshProfile.subscription_id ?? null,
@@ -163,6 +174,9 @@ export default function ProfilePage() {
       setTimeout(() => { setShowUpgradeModal(false); window.location.reload() }, 2000)
     } catch (err) {
       setUpgradeError(err.message ?? 'Plan change failed')
+    } finally {
+      submitLockRef.current = false
+      setUpgrading(false)
     }
   }
 
@@ -223,7 +237,8 @@ export default function ProfilePage() {
 
   async function handleSaveCard(e) {
     e.preventDefault()
-    if (!cardFieldRef.current || !cardFieldReady || cardSaving) return
+    if (!cardFieldRef.current || !cardFieldReady || submitLockRef.current) return
+    submitLockRef.current = true
     setCardSaving(true)
     setCardModalError(null)
     try {
@@ -242,6 +257,7 @@ export default function ProfilePage() {
     } catch (err) {
       setCardModalError(err.message ?? 'Failed to save card')
     } finally {
+      submitLockRef.current = false
       setCardSaving(false)
     }
   }
@@ -765,7 +781,7 @@ export default function ProfilePage() {
                       handleFreePlanChange()
                     }
                   }}
-                  disabled={!upgradePlan}
+                  disabled={!upgradePlan || upgrading}
                   className="w-full mt-2 bg-navy text-sky rounded-full py-3 font-sans font-medium text-sm hover:bg-navy-deep transition-all disabled:opacity-40"
                 >
                   {(() => {
@@ -799,9 +815,10 @@ export default function ProfilePage() {
 
                   <button
                     onClick={handleConfirmPaidChange}
-                    className="w-full bg-navy text-sky rounded-full py-3 font-sans font-medium text-sm hover:bg-navy-deep transition-all"
+                    disabled={upgrading}
+                    className="w-full bg-navy text-sky rounded-full py-3 font-sans font-medium text-sm hover:bg-navy-deep transition-all disabled:opacity-50"
                   >
-                    Confirm — Charge {plan?.price} &amp; Switch
+                    {upgrading ? 'Processing…' : `Confirm — Charge ${plan?.price} & Switch`}
                   </button>
 
                   <p className="text-center">
