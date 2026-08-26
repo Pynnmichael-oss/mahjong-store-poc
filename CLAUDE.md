@@ -48,6 +48,8 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 
 **Data layer pattern:** thin service functions in `src/services/` make direct Supabase queries; custom hooks in `src/hooks/` wrap them with `useState`/`useEffect` and expose `{ data, loading, error, refresh }`. Pages consume hooks, not services directly.
 
+**Timezone:** All date/time logic uses `America/Chicago`. `nowInChicago()` (from `src/lib/dateUtils.js`) is the canonical "now" — use it instead of `new Date()` wherever business rules apply. `formatSessionDate(dateStr)` and `formatTime(timeStr)` handle both date-only strings and full ISO timestamps. `sessionStartDate(session)` builds a `Date` from `session.date + session.start_time`.
+
 **Components** in `src/components/` are organized by domain: `seats/` (SeatButton, SeatMap, TableDisplay), `sessions/` (SessionCard, SessionList), `employee/` (AttendeeRow, AttendeeTable, WalkInForm, SessionCreateModal, etc.), `reservations/` (OverageFlagBanner, ReservationSummary, ReservationStatusBadge), `events/` (EventCard, EventForm, EventList, EventRSVPButton), `checkin/` (CameraScanner, QRCodeDisplay, QRScanInput), `ui/` (shared primitives), `layout/` (Header, CustomerHeader, PageWrapper, FloatingTiles, WaveDivider).
 
 **Business rules** (`src/lib/businessRules.js`):
@@ -92,6 +94,10 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - Production Square plan variation IDs are stored here (not sandbox). Do not replace with sandbox IDs.
 - **`src/pages/auth/SignupPage.jsx` has its own local `PLAN_VARIATION_IDS` constant** (used during signup flow) — keep it in sync with `subscriptionService.js`. Both are currently set to production IDs.
 
+**Session creation** (`src/services/sessionService.js`):
+- `createSessionWithSeats(date, startTime, endTime)` — calls the `create_session_with_seats` Postgres RPC (not a direct insert). Returns the new session UUID, or `null` if a session for that exact date+time already exists. Internally converts bare time strings to Chicago-timezone TIMESTAMPTZ values.
+- `cancelSession(sessionId)` — sets `sessions.status = 'cancelled'` directly.
+
 **Check-in and walk-in** (`src/services/attendanceService.js`):
 - `processQRCheckin(userId, sessionId)` — employee-side QR scan flow: validates reservation, enforces 15-min check-in window, calls `checkInReservation`
 - `addWalkIn({ userId, sessionId, seatId, membershipType, employeeId })` — creates a `walk_in` status reservation directly (bypasses `reserve_seats` RPC); used after walk-in payment is collected
@@ -100,9 +106,15 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - Employees can book non-member guests via `create_guest_reservation` RPC
 - On success, automatically invokes `send-sms` Supabase Edge Function to SMS the guest
 
+**Events** (`src/services/eventService.js`):
+- `fetchUpcomingEvents()` calls the `get_upcoming_events_with_counts` Supabase RPC (not a direct `events` select) — returns each event with a precomputed `confirmed_count` field. `EventCard`, `EventRSVPButton`, and `EventManagerPanel` all read `event.confirmed_count` directly; do not fall back to filtering a nested `event_rsvps` array (that pattern was removed).
+- `EventsPage` gates paid events (`event.cost > 0`) behind `EventRSVPConfirmModal` (`src/components/events/EventRSVPConfirmModal.jsx`), which shows the charge-at-arrival notice before calling `rsvpToEvent`. Free events RSVP immediately with no modal.
+
 **Booking cost** (`src/lib/calculateBookingCost.js`):
-- `calculateBookingCost({ membershipType, seatCount, weeklySessionsUsed })` — returns `{ ownSeatCost, guestSeatCost, totalCents, extraSeats, isFree, isOverage }` in cents
+- `calculateBookingCost({ membershipType, seatCount, weeklySessionsUsed, unlimitedFreeBooking })` — returns `{ ownSeatCost, guestSeatCost, totalCents, extraSeats, isFree, isOverage }` in cents
 - Extra seats (beyond the member's own) are always $15. Use this instead of computing costs inline.
+- `unlimitedFreeBooking: true` short-circuits all fee logic — both own seat and guest seats become $0. Passed from `profile?.unlimited_free_booking` (a boolean column on `profiles`). Intended for comp/staff accounts. `SessionPaymentGate` reads this from the auth profile automatically.
+- `MAX_SEATS_PER_BOOKING = 4` (exported from `businessRules.js`) — hard cap on seats per booking.
 
 **Payments** (`src/services/paymentService.js`):
 - Card payments go through `square-payment` Supabase Edge Function via `chargeCard()`
@@ -116,6 +128,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `square-refund/` — issues a Square refund and updates the `payments` row (`status: 'refunded'`, `square_refund_id`, `refunded_at`, `refunded_by`)
 - `create-subscription/` — creates a Square subscription. Accepts `existingCustomerId` to reuse a stored Square customer + card-on-file (`ccof:` prefix) instead of creating new ones. Updates `profiles` with `subscription_id`, `subscription_status`, `subscription_plan_id`, `next_billing_date`.
 - `square-webhook/` — receives Square webhook events. Verifies HMAC-SHA256 signature using `SQUARE_WEBHOOK_SIGNATURE_KEY` + `SQUARE_WEBHOOK_URL` env vars. Handles: `subscription.updated` (status changes, cancellation scheduling), `invoice.scheduled_charge_failed` (marks `past_due`), `invoice.payment_made` (marks `active`). Requires `SQUARE_WEBHOOK_SIGNATURE_KEY` and `SQUARE_WEBHOOK_URL` secrets set in Supabase.
+- `send-billing-alerts/` — queries `billing_alerts` where `notified: false`, groups rows by `issue_type` (orphaned payments, duplicate charges for the same seat, etc.), and emails an HTML digest to `ALERT_TO_EMAIL` via the Resend API using `RESEND_API_KEY`. Marks each alert `notified: true` after a successful send. No auth check (`verifyAuth` not used) — intended to be invoked on a schedule (e.g. pg_cron), not from the client. The `billing_alerts` table and its population logic are not in any migration file — created manually in Supabase, same pattern as the `kiosk_check_in` and cancellation RPCs below.
 
 **Square environment:** Production. Secrets set in Supabase: `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_ENV=production`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_WEBHOOK_URL`.
 
@@ -150,6 +163,10 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 `seed.sql` in the repo root seeds Supabase with 5 test users (password: `password123`): 4 four_winds_members and 1 employee (`employee@mahjongstore.com`).
 
 `pre_production_cutover_backup.sql` in the repo root is a pre-launch database snapshot — do not delete it.
+
+## Analytics
+
+**Google Analytics 4** (measurement ID `G-MGFN5QMTKZ`) is loaded via a `<script>` tag in `index.html`. Page-view events are fired in `AppRouter.jsx` via a `useEffect` on `location` — it calls `window.gtag('event', 'page_view', { page_path, page_location })` whenever the route changes. Before adding any `gtag` calls, check `typeof window.gtag === 'function'` to guard against environments where it's blocked.
 
 ## Kiosk Mode
 

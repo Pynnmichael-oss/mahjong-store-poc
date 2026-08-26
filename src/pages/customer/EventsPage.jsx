@@ -9,12 +9,15 @@ import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import { rsvpToEvent, cancelRsvp } from '../../services/eventService.js'
 import { supabase } from '../../services/supabase.js'
+import EventRSVPConfirmModal from '../../components/events/EventRSVPConfirmModal.jsx'
 
 export default function EventsPage() {
   const { user } = useAuth()
   const { events, loading, error, refresh } = useEvents()
   const [userRsvps, setUserRsvps] = useState([])
   const [actionError, setActionError] = useState(null)
+  const [pendingConfirmEvent, setPendingConfirmEvent] = useState(null)
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -24,12 +27,25 @@ export default function EventsPage() {
 
   async function handleRsvp(event) {
     setActionError(null)
+    if (!event.cost || Number(event.cost) === 0) {
+      await doRsvp(event)
+      return
+    }
+    setPendingConfirmEvent(event)
+  }
+
+  async function doRsvp(event) {
+    setConfirming(true)
     try {
       const newRsvp = await rsvpToEvent(event.id, user.id)
       setUserRsvps(prev => [...prev, newRsvp])
       refresh()
+      setPendingConfirmEvent(null)
     } catch (err) {
       setActionError(err.message)
+      setPendingConfirmEvent(null)
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -74,6 +90,13 @@ export default function EventsPage() {
           )}
         </div>
       </div>
+      <EventRSVPConfirmModal
+        event={pendingConfirmEvent}
+        open={!!pendingConfirmEvent}
+        onConfirm={() => doRsvp(pendingConfirmEvent)}
+        onCancel={() => setPendingConfirmEvent(null)}
+        submitting={confirming}
+      />
     </PageWrapper>
   )
 }

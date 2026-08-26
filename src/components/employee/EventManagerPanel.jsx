@@ -15,7 +15,7 @@ export default function EventManagerPanel({ event, onUpdate }) {
   const [rsvps, setRsvps] = useState([])
   const [loadingRsvps, setLoadingRsvps] = useState(false)
 
-  const confirmedCount = (event.event_rsvps || []).filter(r => r.status === 'confirmed').length
+  const confirmedCount = event.confirmed_count ?? 0
   const isPast = event.status !== 'upcoming'
 
   async function handleViewRsvps() {

@@ -3,12 +3,7 @@ import { getLocalTodayString } from '../lib/dateUtils.js'
 
 export async function fetchUpcomingEvents() {
   const today = getLocalTodayString()
-  const { data, error } = await supabase
-    .from('events')
-    .select('*, event_rsvps(id, user_id, status)')
-    .gte('event_date', today)
-    .eq('status', 'upcoming')
-    .order('event_date', { ascending: true })
+  const { data, error } = await supabase.rpc('get_upcoming_events_with_counts', { p_today: today })
   if (error) throw error
   return data
 }

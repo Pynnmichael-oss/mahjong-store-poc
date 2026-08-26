@@ -1,5 +1,5 @@
 export default function EventRSVPButton({ event, userRsvp, onRsvp, onCancel }) {
-  const confirmedCount = (event.event_rsvps || []).filter(r => r.status === 'confirmed').length
+  const confirmedCount = event.confirmed_count ?? (event.event_rsvps || []).filter(r => r.status === 'confirmed').length
   const isFull = confirmedCount >= event.capacity
   const isConfirmed = userRsvp?.status === 'confirmed'
   const isWaitlisted = userRsvp?.status === 'waitlisted'
