@@ -32,7 +32,7 @@ export default function EventCard({ event, userRsvp, onRsvp, onCancel, compact =
         <h3 className="font-playfair text-xl text-navy leading-tight mb-2">{event.title}</h3>
 
         {!compact && event.description && (
-          <p className="font-cormorant text-text-mid text-base leading-relaxed mb-3 line-clamp-2">
+          <p className="font-cormorant text-text-mid text-base leading-relaxed mb-3 whitespace-pre-line">
             {event.description}
           </p>
         )}
