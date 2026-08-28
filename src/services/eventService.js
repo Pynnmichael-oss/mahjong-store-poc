@@ -55,6 +55,28 @@ export async function rsvpToEvent(eventId, userId) {
 
   const status = (count ?? 0) < (eventData?.capacity ?? 0) ? 'confirmed' : 'waitlisted'
 
+  // Reuse an existing cancelled row for this event/user instead of inserting a
+  // duplicate — the DB only enforces uniqueness on active (non-cancelled) rows.
+  const { data: existingCancelled, error: existingError } = await supabase
+    .from('event_rsvps')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .eq('status', 'cancelled')
+    .maybeSingle()
+  if (existingError) throw existingError
+
+  if (existingCancelled) {
+    const { data, error } = await supabase
+      .from('event_rsvps')
+      .update({ status })
+      .eq('id', existingCancelled.id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  }
+
   const { data, error } = await supabase
     .from('event_rsvps')
     .insert({ event_id: eventId, user_id: userId, status })
