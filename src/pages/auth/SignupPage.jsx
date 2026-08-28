@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../services/supabase.js'
 import { saveCard, chargeCardOnFile } from '../../services/cardService.js'
+import { getPlanVariationId } from '../../services/subscriptionService.js'
 import { useAuth } from '../../context/AuthContext.jsx'
 import FloatingTiles from '../../components/layout/FloatingTiles.jsx'
 import Alert from '../../components/ui/Alert.jsx'
@@ -9,13 +10,6 @@ import { BUDDY_PASS_ENABLED } from '../../lib/businessRules.js'
 
 const FOUNDING_WINDOW_END = '2026-06-04'
 const FOUNDING_MEMBER_ENABLED = new Date() <= new Date(FOUNDING_WINDOW_END + 'T23:59:59')
-
-const PLAN_VARIATION_IDS = {
-  dragon_pass:     'JXZHTSUW3Y7OZ3Z2ZPHUORKW',
-  flower_pass:     'ASVZPQDTUJOHD3N7FNCEYOZD',
-  bamboo_pass:     'G2ISJEPAD7NKE42NHM3IMCHU',
-  founding_member: '2HJBZ7GAXZXFV5ME3TIZQ65Q',
-}
 
 // ─── Membership plan definitions (signup-specific) ────────────────────────────
 const PLANS = [
@@ -388,7 +382,7 @@ export default function SignupPage() {
       const { data: { session: authSession } } = await supabase.auth.getSession()
       const subResponse = await supabase.functions.invoke('create-subscription', {
         body: {
-          planVariationId: PLAN_VARIATION_IDS[selected],
+          planVariationId: getPlanVariationId(selected),
           membershipType: selected,
           cardToken: token,
           email,
