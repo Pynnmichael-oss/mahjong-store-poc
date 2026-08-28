@@ -21,8 +21,8 @@ const UPGRADE_PLANS = [
   {
     key: 'dragon_pass',
     name: 'Dragon Pass',
-    price: '$149.99',
-    amountCents: 14999,
+    price: '$119.99',
+    amountCents: 11999,
     border: 'border-t-4 border-gold',
     selectedRing: 'ring-2 ring-gold',
     tagCls: 'bg-gold/10 text-navy border border-gold/30',

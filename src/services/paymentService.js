@@ -5,7 +5,7 @@ import { supabase } from './supabase.js'
  *
  * @param {object} params
  * @param {string} params.sourceId       - Token from Square card.tokenize()
- * @param {number} params.amountCents    - Amount in cents (e.g. 14999 for $149.99)
+ * @param {number} params.amountCents    - Amount in cents (e.g. 11999 for $119.99)
  * @param {string} params.description    - Payment description shown in Square dashboard
  * @param {string} [params.userId]       - Supabase user ID (for payment record)
  * @param {string} [params.reservationId] - Reservation ID (for walk-in / overage payments)

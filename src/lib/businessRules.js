@@ -52,8 +52,8 @@ export function countPlaysForSessionWeek(reservations, sessionDate) {
 export const MEMBERSHIP_CONFIG = {
   dragon_pass: {
     label:          'Dragon Pass',
-    price:          '$149.99/mo',
-    priceCents:     14999,
+    price:          '$119.99/mo',
+    priceCents:     11999,
     description:    BUDDY_PASS_ENABLED ? 'Unlimited sessions + 2 buddy passes' : 'Unlimited sessions',
     color:          'gold',
     weeklyLimit:    null,

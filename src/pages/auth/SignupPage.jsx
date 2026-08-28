@@ -11,7 +11,7 @@ const FOUNDING_WINDOW_END = '2026-06-04'
 const FOUNDING_MEMBER_ENABLED = new Date() <= new Date(FOUNDING_WINDOW_END + 'T23:59:59')
 
 const PLAN_VARIATION_IDS = {
-  dragon_pass:     'O7QJ2JIFOVYXSN7CKGX2QYZC',
+  dragon_pass:     'JXZHTSUW3Y7OZ3Z2ZPHUORKW',
   flower_pass:     'ASVZPQDTUJOHD3N7FNCEYOZD',
   bamboo_pass:     'G2ISJEPAD7NKE42NHM3IMCHU',
   founding_member: '2HJBZ7GAXZXFV5ME3TIZQ65Q',
@@ -22,9 +22,9 @@ const PLANS = [
   {
     key: 'dragon_pass',
     name: 'Dragon Pass',
-    price: '$149.99',
+    price: '$119.99',
     period: '/mo',
-    amountCents: 14999,
+    amountCents: 11999,
     border: 'border-t-4 border-gold',
     selectedBorder: 'border-2 border-gold',
     btn: 'bg-navy text-sky hover:bg-navy-deep',

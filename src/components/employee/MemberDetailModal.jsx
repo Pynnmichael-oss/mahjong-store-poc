@@ -208,7 +208,7 @@ export default function MemberDetailModal({ member: initialMember, open, onClose
         <div>
           <label className="block font-sans text-xs font-medium text-text-mid mb-1.5">Membership</label>
           <select value={membershipType} onChange={e => setMembershipType(e.target.value)} className={inputCls} style={{ fontSize: '16px' }}>
-            <option value="dragon_pass">Dragon Pass — $149.99/mo</option>
+            <option value="dragon_pass">Dragon Pass — $119.99/mo</option>
             <option value="flower_pass">Flower Pass — $89.99/mo</option>
             <option value="bamboo_pass">Bamboo Pass — $49.99/mo</option>
             <option value="four_winds_member">Four Winds Member — Free</option>
