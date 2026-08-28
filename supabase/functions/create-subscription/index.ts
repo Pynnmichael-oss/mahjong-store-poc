@@ -168,6 +168,9 @@ serve(async (req) => {
         customer_id: customerId,
         card_id: cardId,
         start_date: today,
+        ...(membershipType === 'dragon_pass'
+          ? { phases: [{ ordinal: 0, order_template_id: Deno.env.get('SQUARE_DRAGON_PASS_ORDER_TEMPLATE_ID') }] }
+          : {}),
       }),
     })
     const subData = await subRes.json()
