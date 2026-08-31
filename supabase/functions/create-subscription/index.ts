@@ -154,6 +154,35 @@ serve(async (req) => {
     const now = new Date()
     const today = now.toISOString().slice(0, 10) // YYYY-MM-DD
 
+    let phases
+    if (membershipType === 'dragon_pass') {
+      const orderRes = await fetch(`${squareBase}/v2/orders`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Square-Version': '2024-01-18',
+        },
+        body: JSON.stringify({
+          idempotency_key: crypto.randomUUID(),
+          order: {
+            location_id: locationId,
+            line_items: [{
+              catalog_object_id: Deno.env.get('SQUARE_DRAGON_PASS_ITEM_VARIATION_ID'),
+              quantity: '1',
+            }],
+            state: 'DRAFT',
+          },
+        }),
+      })
+      const orderData = await orderRes.json()
+      if (!orderRes.ok) {
+        const detail = orderData?.errors?.[0]?.detail ?? 'Failed to create Dragon Pass order template'
+        throw new Error(detail)
+      }
+      phases = [{ ordinal: 0, order_template_id: orderData.order.id }]
+    }
+
     const subRes = await fetch(`${squareBase}/v2/subscriptions`, {
       method: 'POST',
       headers: {
@@ -168,9 +197,7 @@ serve(async (req) => {
         customer_id: customerId,
         card_id: cardId,
         start_date: today,
-        ...(membershipType === 'dragon_pass'
-          ? { phases: [{ ordinal: 0, order_template_id: Deno.env.get('SQUARE_DRAGON_PASS_ORDER_TEMPLATE_ID') }] }
-          : {}),
+        ...(phases ? { phases } : {}),
       }),
     })
     const subData = await subRes.json()
