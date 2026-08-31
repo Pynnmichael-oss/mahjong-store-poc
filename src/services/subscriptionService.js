@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js'
 
 const PLAN_VARIATION_IDS = {
-  dragon_pass:     'LRLMYKSJWMTUWIULV5O7GZHG',
+  dragon_pass:     'XMHC4NH6UK5WHCRBBSM3NXMX',
   flower_pass:     'ASVZPQDTUJOHD3N7FNCEYOZD',
   bamboo_pass:     'G2ISJEPAD7NKE42NHM3IMCHU',
   founding_member: '2HJBZ7GAXZXFV5ME3TIZQ65Q',
