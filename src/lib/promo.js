@@ -16,6 +16,10 @@ export const PROMO_BF_COPY =
   'Black Friday Special: 6 months of unlimited Dragon Pass for $357, paid once. ' +
   'Does not auto-renew. Available Nov 27 only.'
 
+// Headline benefit, shown alongside PROMO_BF_COPY on every surface that
+// advertises the offer. Kept separate so the sentence above stays verbatim.
+export const PROMO_BF_HIGHLIGHT = 'Unlimited play on Bespoke Automatic Tables'
+
 // True only when the flag is on AND now falls inside the configured window.
 // Fails closed: a missing or unparseable window hides the offer.
 export function isBlackFridayPromoOpen(now = new Date()) {

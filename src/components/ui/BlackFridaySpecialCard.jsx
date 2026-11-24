@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { purchaseBlackFridaySpecial } from '../../services/promoService.js'
-import { isBlackFridayPromoOpen, isEligibleForBlackFridayPromo, PROMO_BF_COPY } from '../../lib/promo.js'
+import { isBlackFridayPromoOpen, isEligibleForBlackFridayPromo, PROMO_BF_COPY, PROMO_BF_HIGHLIGHT } from '../../lib/promo.js'
 import { formatMembershipExpiry } from '../../lib/dateUtils.js'
 import Alert from './Alert.jsx'
 import FadeUp from './FadeUp.jsx'
@@ -137,6 +137,13 @@ export default function BlackFridaySpecialCard() {
                 <span className="font-playfair text-gold text-4xl">$357</span>
                 <span className="font-sans text-sky/60 text-sm">paid once</span>
               </div>
+              <div className="flex items-start gap-2 mb-3">
+                <span className="text-gold mt-0.5 flex-shrink-0">✦</span>
+                <p className="font-sans text-sm font-medium text-sky">
+                  {PROMO_BF_HIGHLIGHT}
+                </p>
+              </div>
+
               <p className="font-cormorant italic text-sky/80 text-base leading-relaxed mb-5">
                 {PROMO_BF_COPY}
               </p>

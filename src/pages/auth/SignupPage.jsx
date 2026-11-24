@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import FloatingTiles from '../../components/layout/FloatingTiles.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 import { BUDDY_PASS_ENABLED } from '../../lib/businessRules.js'
-import { isBlackFridayPromoOpen } from '../../lib/promo.js'
+import { isBlackFridayPromoOpen, PROMO_BF_HIGHLIGHT } from '../../lib/promo.js'
 import { purchaseBlackFridaySpecial } from '../../services/promoService.js'
 
 const FOUNDING_WINDOW_END = '2026-06-04'
@@ -33,6 +33,7 @@ const PLANS = [
     btn: 'bg-gold text-navy hover:bg-gold/90',
     badge: 'One Day Only',
     benefits: [
+      PROMO_BF_HIGHLIGHT,
       '6 months of unlimited Dragon Pass',
       'Paid once — does not auto-renew',
       '15% off events + early access',

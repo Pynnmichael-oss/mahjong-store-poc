@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { isBlackFridayPromoOpen, PROMO_BF_COPY } from '../../lib/promo.js'
+import { isBlackFridayPromoOpen, PROMO_BF_COPY, PROMO_BF_HIGHLIGHT } from '../../lib/promo.js'
 
 /**
  * BlackFridayPromoBanner
@@ -29,6 +29,13 @@ export default function BlackFridayPromoBanner() {
         <div className="flex items-baseline justify-center gap-2 mb-4">
           <span className="font-playfair text-gold text-5xl">$357</span>
           <span className="font-sans text-sky/60 text-sm">paid once</span>
+        </div>
+
+        <div className="inline-flex items-center gap-2 mb-5 px-5 py-2 rounded-full bg-gold/15 border border-gold/30">
+          <span className="text-gold flex-shrink-0">✦</span>
+          <p className="font-sans text-sm font-medium text-sky">
+            {PROMO_BF_HIGHLIGHT}
+          </p>
         </div>
 
         <p className="font-cormorant italic text-sky/80 text-lg leading-relaxed max-w-2xl mx-auto mb-7">
