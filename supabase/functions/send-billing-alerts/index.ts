@@ -72,8 +72,14 @@ Deno.serve(async () => {
 
   const profiles = new Map<string, Profile>((profileRows ?? []).map((p: Profile) => [p.id, p]))
 
+  const KNOWN_TYPES = ['orphan', 'duplicate_seat', 'promo_unfulfilled']
+
   const orphans    = (alerts as Alert[]).filter(a => a.issue_type === 'orphan')
   const duplicates = (alerts as Alert[]).filter(a => a.issue_type === 'duplicate_seat')
+  const promos     = (alerts as Alert[]).filter(a => a.issue_type === 'promo_unfulfilled')
+  // Catch-all: without this, a new issue_type is counted in the header, marked
+  // notified: true, and then dropped from the HTML body — silently consumed.
+  const others     = (alerts as Alert[]).filter(a => !KNOWN_TYPES.includes(a.issue_type))
 
   // Build HTML sections
   const orphanRows = orphans.map((a, i) => {
@@ -98,17 +104,49 @@ Deno.serve(async () => {
     return row([name, count, seatId, sessionId, ids], i % 2 === 1)
   })
 
+  // Charge succeeded but fulfilment failed: the customer has paid and received
+  // nothing. The most urgent row in the digest, so it renders first.
+  const promoRows = promos.map((a, i) => {
+    const p         = profiles.get(a.user_id)
+    const name      = p?.full_name ?? a.user_id ?? '—'
+    const email     = p?.email ?? '—'
+    const amount    = a.detail?.amount_cents != null
+      ? `$${(Number(a.detail.amount_cents) / 100).toFixed(2)}`
+      : '—'
+    const stage     = String(a.detail?.stage ?? '—')
+    const paymentId = String(a.detail?.square_payment_id ?? '—')
+    const chargedAt = String(a.detail?.charged_at ?? a.detected_at)
+    return row([name, email, amount, stage, paymentId, chargedAt], i % 2 === 1)
+  })
+
+  const otherRows = others.map((a, i) => {
+    const p     = profiles.get(a.user_id)
+    const name  = p?.full_name ?? a.user_id ?? '—'
+    const email = p?.email ?? '—'
+    const ids   = Array.isArray(a.payment_ids) && a.payment_ids.length
+      ? a.payment_ids.join('<br>')
+      : '—'
+    const det   = a.detail ? JSON.stringify(a.detail) : '—'
+    return row([a.issue_type, name, email, ids, det, a.detected_at], i % 2 === 1)
+  })
+
   const htmlBody = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="background:#faf8f3;padding:32px;font-family:Arial,sans-serif">
   <h1 style="color:#1a3a6b;font-size:22px;margin-bottom:4px">Four Winds — Billing Alerts</h1>
   <p style="color:#4a5568;font-size:14px;margin-top:0">${alerts.length} unnotified alert${alerts.length !== 1 ? 's' : ''} · ${new Date().toUTCString()}</p>
+  ${section('&#9888;&#65039; PAID BUT NOT FULFILLED &mdash; activate these manually', promos.length,
+      ['Customer', 'Email', 'Amount', 'Failed At', 'Square Payment ID', 'Charged At'],
+      promoRows)}
   ${section('Orphaned Payments', orphans.length,
       ['Customer', 'Email', 'Amount', 'Square Payment ID', 'Paid At'],
       orphanRows)}
   ${section('Duplicate Charges (same seat)', duplicates.length,
       ['Customer', 'Charge Count', 'Seat ID', 'Session ID', 'Payment IDs'],
       duplicateRows)}
+  ${section('Other Alerts', others.length,
+      ['Type', 'Customer', 'Email', 'Payment IDs', 'Detail', 'Detected At'],
+      otherRows)}
 </body></html>`
 
   // Plain-text fallback
