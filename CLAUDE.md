@@ -22,6 +22,17 @@ VITE_SQUARE_APP_ID=your-square-app-id
 VITE_SQUARE_LOCATION_ID=your-square-location-id
 ```
 
+Optional, for the Black Friday Special promo (see `docs/BLACK_FRIDAY_PROMO.md`). All
+three must be present or the offer stays hidden — the gate fails closed:
+```
+VITE_PROMO_BF_ENABLED=true
+VITE_PROMO_STARTS_AT=2026-11-27T06:00:00Z
+VITE_PROMO_ENDS_AT=2026-11-28T05:59:59Z
+```
+These are inlined by Vite **at build time**. Changing them on Netlify has no effect
+until a new build runs, and the variables must be `VITE_`-prefixed to reach the
+browser at all.
+
 ## Architecture
 
 **Stack:** React 18 + Vite + Tailwind CSS v3 + Supabase (auth + database). No TypeScript — plain JSX. Deployed via **Netlify** (`netlify.toml` with a catch-all `/*` → `/index.html` redirect).
@@ -61,6 +72,7 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
   - `four_winds_member` — Free account, $15 per session
   - `founding_member` — $120/mo, unlimited, charter recognition, early events, 15% discount. Buddy passes: 2 when `BUDDY_PASS_ENABLED`, else 0. Filtered out of the plan-change picker for existing members. Signup window ends 2026-06-04.
 - `walk_in` membership type is **retired** — migrated to `four_winds_member`. `walk_in` still exists as a reservation STATUS (unchanged).
+- **`promo_bf2026` is a `payment_type`, never a `membership_type`.** The `membership_type` enum accepts only `dragon_pass`, `flower_pass`, `four_winds_member`, `walk_in`, `bamboo_pass`, `founding_member`. The Black Friday Special is a one-time purchase that grants `dragon_pass` plus a `membership_expires_at` date — writing the promo key into `membership_type` aborts the transaction. See `docs/BLACK_FRIDAY_PROMO.md`.
 - `getMembershipConfig(unknownType)` falls back to `four_winds_member`
 - `getMembershipBadgeClasses(type)` — returns Tailwind classes. `founding_member` uses `bg-navy text-gold` (navy background, gold text) with a crown SVG icon rendered inline wherever the badge appears.
 - `isFoundingMember(type)` — returns `true` if type is `'founding_member'`; use this to conditionally render the crown icon.
@@ -128,9 +140,13 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `square-refund/` — issues a Square refund and updates the `payments` row (`status: 'refunded'`, `square_refund_id`, `refunded_at`, `refunded_by`)
 - `create-subscription/` — creates a Square subscription. Accepts `existingCustomerId` to reuse a stored Square customer + card-on-file (`ccof:` prefix) instead of creating new ones. Updates `profiles` with `subscription_id`, `subscription_status`, `subscription_plan_id`, `next_billing_date`.
 - `square-webhook/` — receives Square webhook events. Verifies HMAC-SHA256 signature using `SQUARE_WEBHOOK_SIGNATURE_KEY` + `SQUARE_WEBHOOK_URL` env vars. Handles: `subscription.updated` (status changes, cancellation scheduling), `invoice.scheduled_charge_failed` (marks `past_due`), `invoice.payment_made` (marks `active`). Requires `SQUARE_WEBHOOK_SIGNATURE_KEY` and `SQUARE_WEBHOOK_URL` secrets set in Supabase.
-- `send-billing-alerts/` — queries `billing_alerts` where `notified: false`, groups rows by `issue_type` (orphaned payments, duplicate charges for the same seat, etc.), and emails an HTML digest to `ALERT_TO_EMAIL` via the Resend API using `RESEND_API_KEY`. Marks each alert `notified: true` after a successful send. No auth check (`verifyAuth` not used) — intended to be invoked on a schedule (e.g. pg_cron), not from the client. The `billing_alerts` table and its population logic are not in any migration file — created manually in Supabase, same pattern as the `kiosk_check_in` and cancellation RPCs below.
+- `send-billing-alerts/` — queries `billing_alerts` where `notified: false`, groups rows by `issue_type` (orphaned payments, duplicate charges for the same seat, promo fulfilment failures), and emails an HTML digest to `ALERT_TO_EMAIL` via the Resend API using `RESEND_API_KEY`. Marks each alert `notified: true` after a successful send. Invoked by the `billing-alerts-nightly` pg_cron job at 21:00 UTC (3pm Chicago), which passes a Bearer anon key. The `billing_alerts` table and its population logic are not in any migration file — created manually in Supabase, same pattern as the `kiosk_check_in` and cancellation RPCs below.
+  - **Every `issue_type` must have a rendered section.** The HTML body is built from explicit per-type filters while the subject line counts *all* unnotified rows and the function marks them all `notified: true` — so an unrendered type is counted, silently dropped, and never shown again. A catch-all `Other Alerts` section now backstops this; keep it.
+- `purchase-bf-special/` — the Black Friday Special. Amount is the server constant `35700`; **never accepts an amount from the client.** Enforces the promo window and `PROMO_BF_ENABLED` *before* auth and before any Square call, so it fails closed. Rejects a non-null `subscription_id`, an existing `membership_expires_at`, `unlimited_free_booking`, or a prior completed `promo_bf2026` payment. Idempotency key is deterministic: `bf2026-${user_id}` — see `docs/BLACK_FRIDAY_PROMO.md` for the consequences, which are significant. On a post-charge DB failure it writes a `promo_unfulfilled` billing alert and **never retries the charge.**
 
-**Square environment:** Production. Secrets set in Supabase: `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_ENV=production`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_WEBHOOK_URL`.
+**Square environment:** Production. Secrets set in Supabase: `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID`, `SQUARE_ENV=production`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_WEBHOOK_URL`, plus `PROMO_BF_ENABLED`, `PROMO_STARTS_AT`, `PROMO_ENDS_AT` for the promo. There is no Square sandbox configured — **every charge in development is a real charge.** Test card numbers such as `4111 1111 1111 1111` fail against production with `PAN_FAILURE`.
+
+**Black Friday Special promo** (`promo_bf2026`) — a one-time $357 prepaid purchase granting 6 months of Dragon Pass. Not a subscription, not in the Square catalog, does not auto-renew. Full operational detail, failure modes and recovery steps are in **`docs/BLACK_FRIDAY_PROMO.md`** — read it before changing anything promo-related.
 
 **Saved-card flow** (`src/services/cardService.js`):
 - `getSavedCard(userId)` — reads `square_customer_id` / `square_card_id` from `profiles`
@@ -152,11 +168,12 @@ Auth is handled by `AuthContext` (`src/context/AuthContext.jsx`), which fetches 
 - `/reset-password` is NOT wrapped — email recovery links create a temporary Supabase session, so the user is technically "logged in" when they land. After a successful reset, `supabase.auth.signOut()` is called to clear the temporary session before redirecting to `/login`.
 
 **Database schema (key tables):**
-- `profiles` — extends `auth.users`; `role`, `membership_type`, `is_active`, `member_number`, `square_customer_id`, `square_card_id`, `subscription_id`, `subscription_status`, `subscription_plan_id`, `next_billing_date`, `subscription_cancel_at`
+- `profiles` — extends `auth.users`; `role`, `membership_type`, `is_active`, `member_number`, `square_customer_id`, `square_card_id`, `subscription_id`, `subscription_status`, `subscription_plan_id`, `next_billing_date`, `subscription_cancel_at`, `membership_expires_at` (prepaid promo term; NULL for everyone else — a non-NULL value means the member paid up front and has no subscription)
 - `sessions` — `date`, `start_time`, `end_time`, `total_seats`, `status`
 - `seats` — `session_id`, `seat_number`, `status` (available/reserved/occupied)
 - `reservations` — `user_id`, `session_id`, `seat_id`, `status` (confirmed/checked_in/no_show/cancelled/walk_in), `is_flagged_overage`, `is_walk_in`, `is_primary_seat` (true for the member's own seat, false for extra/guest seats), `membership_type_at_booking`, `override_by`, `override_at`, `group_reservation_id`
-- `payments` — `user_id`, `amount_cents`, `status` (pending/completed/refunded), `square_payment_id`, `square_refund_id`, `refunded_at`, `refunded_by`, `reference_id` (reservation UUID)
+- `payments` — `user_id`, `amount_cents`, `status` (pending/completed/refunded), `square_payment_id`, `square_refund_id`, `refunded_at`, `refunded_by`, `reference_id` (reservation UUID), `payment_type` (CHECK-constrained: `membership`, `session`, `walk_in_fee`, `event`, `refund`, `overage`, `guest_seat`, `promo_bf2026` — widen the CHECK before introducing a new type)
+- `billing_alerts` — `issue_type` (CHECK-constrained: `orphan`, `duplicate_seat`, `promo_unfulfilled`), `dedup_key`, `payment_ids` (**`uuid[]` NOT NULL** — a Square payment id is not a UUID, so it belongs in `detail`), `user_id`, `detail` (jsonb), `notified`, `detected_at`. Created manually, not in a migration. **RLS is not enabled**, so it is readable by anyone holding the public anon key; no client code reads it (service role only), so `ALTER TABLE billing_alerts ENABLE ROW LEVEL SECURITY` would close that with no application impact.
 - `buddy_passes` — `owner_id`, `code`, `used_count`, `max_uses`, month-scoped
 - `events` / `event_rsvps` — event listings and RSVP tracking
 
