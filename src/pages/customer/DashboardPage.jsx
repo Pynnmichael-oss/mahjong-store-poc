@@ -1,16 +1,23 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import PageWrapper from '../../components/layout/PageWrapper.jsx'
 import CustomerHeader from '../../components/layout/CustomerHeader.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useUserReservations } from '../../hooks/useReservations.js'
 import FadeUp from '../../components/ui/FadeUp.jsx'
-import { formatSessionDate, formatTime, getLocalTodayString } from '../../lib/dateUtils.js'
+import BlackFridaySpecialCard from '../../components/ui/BlackFridaySpecialCard.jsx'
+import { isBlackFridayPromoOpen, isEligibleForBlackFridayPromo } from '../../lib/promo.js'
+import { formatSessionDate, formatTime, getLocalTodayString, formatMembershipExpiry } from '../../lib/dateUtils.js'
 import { getTableForSeat } from '../../lib/businessRules.js'
 
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const location = useLocation()
   const { reservations, loading: resLoading } = useUserReservations(user?.id)
+
+  // Set by the signup flow when the Black Friday Special was just purchased, so
+  // a member who has paid $357 gets an explicit confirmation on landing.
+  const promoExpiresAt = location.state?.promoExpiresAt ?? null
 
   const today = getLocalTodayString()
   const upcoming = reservations
@@ -37,6 +44,32 @@ export default function DashboardPage() {
       {/* ── Primary CTA section ── */}
       <div className="bg-cream py-10 px-4 sm:px-8">
         <div className="max-w-2xl mx-auto text-center">
+
+          {/* Just-purchased confirmation from the signup flow */}
+          {promoExpiresAt && (
+            <FadeUp>
+              <div className="mb-8 text-left border-l-4 border-gold bg-white rounded-2xl px-6 py-5 shadow-sm">
+                <p className="font-sans text-[10px] uppercase tracking-[3px] text-sky-mid mb-2">
+                  Black Friday Special confirmed
+                </p>
+                <p className="font-playfair text-navy text-xl">
+                  Dragon Pass is active through {formatMembershipExpiry(promoExpiresAt)}.
+                </p>
+                <p className="font-cormorant italic text-text-mid text-base mt-1">
+                  Paid once — this does not auto-renew, so there is nothing to cancel.
+                </p>
+              </div>
+            </FadeUp>
+          )}
+
+          {/* The card self-gates too; this mirrors its check only so an empty
+              wrapper does not leave a gap in the layout when it renders null. */}
+          {isBlackFridayPromoOpen() && isEligibleForBlackFridayPromo(profile) && (
+            <div className="mb-8 text-left">
+              <BlackFridaySpecialCard />
+            </div>
+          )}
+
           <FadeUp>
             {/* Next reservation card — shown above CTA if exists */}
             {!resLoading && nextReservation && nextSession && (

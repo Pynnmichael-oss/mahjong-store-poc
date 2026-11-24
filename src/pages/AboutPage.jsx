@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import FloatingTiles from '../components/layout/FloatingTiles.jsx'
 import LoadingSpinner from '../components/ui/LoadingSpinner.jsx'
 import FadeUp from '../components/ui/FadeUp.jsx'
+import BlackFridayPromoBanner from '../components/ui/BlackFridayPromoBanner.jsx'
 import { supabase } from '../services/supabase.js'
 import { formatSessionDate, formatTime, getLocalTodayString } from '../lib/dateUtils.js'
 
@@ -280,6 +281,9 @@ export default function AboutPage() {
           <div className="w-px h-8 bg-sky-mid/40" />
         </div>
       </section>
+
+      {/* ── Black Friday Special (self-gating; nothing outside the window) ──── */}
+      <BlackFridayPromoBanner />
 
       {/* ── SECTION 2: ABOUT ────────────────────────────────────────────────── */}
       <section id="about" className="bg-warm-white py-24 px-4 sm:px-8">
