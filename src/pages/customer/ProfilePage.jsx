@@ -8,11 +8,12 @@ import { saveCard } from '../../services/cardService.js'
 import { changeSubscription, cancelSubscription, getPlanVariationId } from '../../services/subscriptionService.js'
 import { checkCancellationEligibility, cancelReservationWithRefund } from '../../services/reservationService.js'
 import { getMembershipConfig, getMembershipBadgeClasses, isBuddyPassEligible, getPassResetDate, getWeeklyLimit, getTableForSeat, BUDDY_PASS_ENABLED } from '../../lib/businessRules.js'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, formatMembershipExpiry } from '../../lib/dateUtils.js'
 import { useWeeklySessionCount } from '../../hooks/useMonthlySessionCount.js'
 import Alert from '../../components/ui/Alert.jsx'
 import FadeUp from '../../components/ui/FadeUp.jsx'
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx'
+import BlackFridaySpecialCard from '../../components/ui/BlackFridaySpecialCard.jsx'
 
 const APP_ID      = import.meta.env.VITE_SQUARE_APP_ID
 const LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID
@@ -390,6 +391,10 @@ export default function ProfilePage() {
           </div>
         </FadeUp>
 
+        {/* Black Friday Special — self-gating: renders nothing outside the
+            promo window or for a member the server would reject. */}
+        <BlackFridaySpecialCard />
+
         {/* Membership */}
         <FadeUp delay={100}>
           <div className="bg-white rounded-2xl border border-navy/8 shadow-sm p-6">
@@ -404,7 +409,14 @@ export default function ProfilePage() {
                 {config.label}
               </span>
             </div>
-            {config.price && (
+            {profile?.membership_expires_at ? (
+              /* Prepaid promo: show the term instead of a monthly price, which
+                 this member is not paying. */
+              <p className="font-sans text-sm text-navy mb-3">
+                Dragon Pass (Black Friday Special) — expires{' '}
+                {formatMembershipExpiry(profile.membership_expires_at)}.
+              </p>
+            ) : config.price && (
               <p className="font-cormorant italic text-text-soft text-sm mb-3">{config.price}</p>
             )}
 
