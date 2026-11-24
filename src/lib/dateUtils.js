@@ -10,6 +10,18 @@ export function formatSessionDate(dateStr) {
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+// Formats a full TIMESTAMPTZ in Chicago time. Do NOT use formatSessionDate for
+// this: it splits the ISO string on "T" and keeps the UTC date part, so an
+// expiry of 2027-05-28T04:59:59Z (May 27, 11:59pm Chicago) would read "May 28".
+export function formatMembershipExpiry(tsStr) {
+  if (!tsStr) return '—'
+  const date = new Date(tsStr)
+  if (isNaN(date)) return '—'
+  return date.toLocaleDateString('en-US', {
+    timeZone: TZ, year: 'numeric', month: 'long', day: 'numeric',
+  })
+}
+
 export function formatTime(timeStr) {
   if (!timeStr) return ''
   // Full ISO timestamp (TIMESTAMPTZ) — parse directly

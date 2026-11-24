@@ -81,6 +81,25 @@ serve(async (req) => {
     const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const db = createClient(supabaseUrl, serviceKey)
 
+    // 0. Guard: a live prepaid Black Friday Special must not be replaced by a
+    // recurring subscription. The customer already paid for this window, and
+    // subscribing would both double-bill them and hand the promo row a
+    // subscription_id, which excludes it from expire_promo_memberships().
+    const { data: promoRow, error: promoReadError } = await db
+      .from('profiles')
+      .select('membership_expires_at')
+      .eq('id', authedUserId)
+      .single()
+
+    if (promoReadError) throw new Error(`Failed to read profile: ${promoReadError.message}`)
+
+    if (promoRow?.membership_expires_at && new Date(promoRow.membership_expires_at) > new Date()) {
+      const until = new Date(promoRow.membership_expires_at).toLocaleDateString('en-US', {
+        timeZone: 'America/Chicago', year: 'numeric', month: 'long', day: 'numeric',
+      })
+      throw new Error(`Your Black Friday Special is active until ${until}.`)
+    }
+
     // 1. Check for existing Square customer
     let customerId: string
 
@@ -220,6 +239,9 @@ serve(async (req) => {
       subscription_status: 'active',
       subscription_plan_id: planVariationId,
       next_billing_date: nextBillingDate,
+      // A real subscription supersedes any lapsed prepaid promo marker, so the
+      // nightly expiry job can never downgrade a paying subscriber.
+      membership_expires_at: null,
     }
     if (!existingCustomerId) {
       profileFields.square_customer_id = customerId

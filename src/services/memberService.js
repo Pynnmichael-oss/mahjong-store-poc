@@ -45,7 +45,10 @@ export async function fetchAllMembers() {
 export async function updateMembershipType(userId, membershipType) {
   const { error } = await supabase
     .from('profiles')
-    .update({ membership_type: membershipType })
+    // Clear any prepaid promo marker: a staff tier change supersedes it, and
+    // leaving it set would let expire_promo_memberships() later revert the
+    // tier staff just assigned.
+    .update({ membership_type: membershipType, membership_expires_at: null })
     .eq('id', userId)
   if (error) throw error
 }

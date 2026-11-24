@@ -4,7 +4,7 @@ import Badge from '../ui/Badge.jsx'
 import Alert from '../ui/Alert.jsx'
 import LoadingSpinner from '../ui/LoadingSpinner.jsx'
 import { MEMBERSHIP_CONFIG, getMembershipLabel, getMembershipBadgeClasses, buildReservationPayload, shouldFlagOverage, countCheckedInPlaysThisWeek } from '../../lib/businessRules.js'
-import { formatSessionDate, formatTime } from '../../lib/dateUtils.js'
+import { formatSessionDate, formatTime, formatMembershipExpiry } from '../../lib/dateUtils.js'
 import { updateMemberProfile, fetchMemberReservations } from '../../services/memberService.js'
 import { fetchUpcomingSessions } from '../../services/sessionService.js'
 import { fetchSeatsBySession } from '../../services/seatService.js'
@@ -159,10 +159,15 @@ export default function MemberDetailModal({ member: initialMember, open, onClose
     setSaving(true)
     setSaveError(null)
     try {
+      const tierChanged = membershipType !== (member.membership_type ?? 'four_winds_member')
       const updated = await updateMemberProfile(member.id, {
         full_name: fullName.trim(),
         membership_type: membershipType,
         is_active: isActive,
+        // Only clear the prepaid promo marker when the tier actually changed —
+        // saving an unrelated edit (name, active status) must not cut a paid
+        // Black Friday Special short.
+        ...(tierChanged ? { membership_expires_at: null } : {}),
       })
       setMember(updated)
       onSaved?.(updated)
@@ -214,6 +219,23 @@ export default function MemberDetailModal({ member: initialMember, open, onClose
             <option value="four_winds_member">Four Winds Member — Free</option>
           </select>
         </div>
+
+        {member.membership_expires_at && (
+          <div className="flex items-start gap-2.5 p-4 bg-gold-light rounded-xl border border-gold/30">
+            <svg className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p className="font-sans text-sm font-medium text-navy">Prepaid membership</p>
+              <p className="font-sans text-xs text-text-mid mt-0.5">
+                Expires {formatMembershipExpiry(member.membership_expires_at)} — does not auto-renew.
+              </p>
+              <p className="font-sans text-xs text-text-soft mt-1">
+                Changing the membership above will clear this and end the prepaid term.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between p-4 bg-cream rounded-xl">
           <div>
