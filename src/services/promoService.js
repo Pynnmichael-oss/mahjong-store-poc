@@ -6,12 +6,18 @@ import { supabase } from './supabase.js'
  * The amount is NOT sent — it is a server constant in purchase-bf-special.
  * Pass a freshly tokenised card, or omit `token` to charge the card on file.
  *
- * @param {{ token?: string }} args
+ * `accessToken` is only needed during signup, where the account was created
+ * moments earlier: pass the session token explicitly so the call cannot race
+ * the client picking up its new session. Elsewhere, omit it and supabase-js
+ * attaches the current session itself.
+ *
+ * @param {{ token?: string, accessToken?: string }} args
  * @returns {Promise<{ paymentId: string|null, squarePaymentId: string, membershipType: string, membershipExpiresAt: string }>}
  */
-export async function purchaseBlackFridaySpecial({ token } = {}) {
+export async function purchaseBlackFridaySpecial({ token, accessToken } = {}) {
   const { data, error } = await supabase.functions.invoke('purchase-bf-special', {
     body: token ? { token } : {},
+    ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
   })
 
   if (error) {

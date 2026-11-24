@@ -7,12 +7,38 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import FloatingTiles from '../../components/layout/FloatingTiles.jsx'
 import Alert from '../../components/ui/Alert.jsx'
 import { BUDDY_PASS_ENABLED } from '../../lib/businessRules.js'
+import { isBlackFridayPromoOpen } from '../../lib/promo.js'
+import { purchaseBlackFridaySpecial } from '../../services/promoService.js'
 
 const FOUNDING_WINDOW_END = '2026-06-04'
 const FOUNDING_MEMBER_ENABLED = new Date() <= new Date(FOUNDING_WINDOW_END + 'T23:59:59')
 
+// The Black Friday Special is NOT a membership tier and NOT a subscription:
+// it is a one-time charge that the server converts into 6 months of Dragon
+// Pass. `promo_bf2026` is a payment_type, never a membership_type, so the
+// profile is created on `signupTier` and purchase-bf-special promotes it.
+const PROMO_PLAN_KEY = 'promo_bf2026'
+
 // ─── Membership plan definitions (signup-specific) ────────────────────────────
 const PLANS = [
+  {
+    key: PROMO_PLAN_KEY,
+    name: 'Black Friday Special',
+    price: '$357',
+    period: ' once',
+    amountCents: 35700,
+    signupTier: 'four_winds_member',
+    border: 'border-t-4 border-gold',
+    selectedBorder: 'border-2 border-gold',
+    btn: 'bg-gold text-navy hover:bg-gold/90',
+    badge: 'One Day Only',
+    benefits: [
+      '6 months of unlimited Dragon Pass',
+      'Paid once — does not auto-renew',
+      '15% off events + early access',
+    ],
+    note: 'Nothing to cancel — it simply ends after 6 months.',
+  },
   {
     key: 'dragon_pass',
     name: 'Dragon Pass',
@@ -98,9 +124,17 @@ const PLANS = [
   },
 ]
 
-const VISIBLE_PLANS = FOUNDING_MEMBER_ENABLED
+const BASE_PLANS = FOUNDING_MEMBER_ENABLED
   ? PLANS
   : PLANS.filter(p => p.key !== 'founding_member')
+
+// Evaluated per render rather than at module load, so a tab left open across
+// the promo window boundary cannot keep offering a closed promo.
+function visiblePlans() {
+  return isBlackFridayPromoOpen()
+    ? BASE_PLANS
+    : BASE_PLANS.filter(p => p.key !== PROMO_PLAN_KEY)
+}
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 const STEP_LABELS = { 1: 'Your Details', 2: 'Choose Your Plan', 3: 'Payment' }
@@ -241,7 +275,11 @@ export default function SignupPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const isPaidPlan = PLANS.find(p => p.key === selected)?.amountCents > 0
+  const isPaidPlan      = PLANS.find(p => p.key === selected)?.amountCents > 0
+  const isPromoSelected = selected === PROMO_PLAN_KEY
+  // The tier to write when creating the profile. The promo is not a tier, so
+  // the account starts free and the Edge Function promotes it after payment.
+  const signupTier      = PLANS.find(p => p.key === selected)?.signupTier ?? selected
 
   // ── Step 2 → advance ──────────────────────────────────────────────────────
   function handlePlanContinue() {
@@ -371,15 +409,51 @@ export default function SignupPage() {
 
       // 3. Upsert profile with chosen plan
       const { error: upsertError } = await supabase.from('profiles').upsert(
-        { id: userId, full_name: fullName, email, phone: phone.trim(), role: 'customer', membership_type: selected, is_active: true },
+        { id: userId, full_name: fullName, email, phone: phone.trim(), role: 'customer', membership_type: signupTier, is_active: true },
         { onConflict: 'id' }
       )
       if (upsertError) console.error('[Signup] profile upsert error:', upsertError.message)
-      const { error: profileUpdateErr } = await supabase.from('profiles').update({ full_name: fullName, phone: phone.trim(), membership_type: selected }).eq('id', userId)
+      const { error: profileUpdateErr } = await supabase.from('profiles').update({ full_name: fullName, phone: phone.trim(), membership_type: signupTier }).eq('id', userId)
       if (profileUpdateErr) console.error('[Signup] profile update error:', profileUpdateErr.message)
 
-      // 4. Create Square subscription (vaults card + creates subscription in one call)
       const { data: { session: authSession } } = await supabase.auth.getSession()
+
+      // 4a. Black Friday Special: a one-time charge, not a subscription. The
+      // server holds the $357 amount and sets the tier plus the 6-month expiry,
+      // so there is no plan variation and nothing to cancel later.
+      if (isPromoSelected) {
+        try {
+          const promoResult = await purchaseBlackFridaySpecial({
+            token,
+            accessToken: authSession?.access_token,
+          })
+          await refreshProfile()
+          navigate('/dashboard', {
+            replace: true,
+            state: { promoExpiresAt: promoResult?.membershipExpiresAt ?? null },
+          })
+        } catch (promoErr) {
+          // Never retry the charge from here. The offer uses a deterministic
+          // Square idempotency key, so a decline is replayed for this account
+          // and a second card will NOT go through — telling them to try
+          // another card would send them in circles. Staff must finish it.
+          const rawError = promoErr?.message ?? 'Payment could not be processed.'
+          const isDeclined = /declin|insufficient|cvv|expired|card.*not.*support/i.test(rawError)
+          setError(
+            isDeclined
+              ? `Your card was declined: ${rawError} Your account has been created, ` +
+                'but this one-time offer cannot be re-attempted online. Please contact ' +
+                'staff and they will complete it for you.'
+              : rawError
+          )
+          // Account exists now, so keep them on a dead end rather than looping
+          // them back through a signup that would fail as "already registered".
+          setStep(3)
+        }
+        return
+      }
+
+      // 4. Create Square subscription (vaults card + creates subscription in one call)
       const subResponse = await supabase.functions.invoke('create-subscription', {
         body: {
           planVariationId: getPlanVariationId(selected),
@@ -590,7 +664,7 @@ export default function SignupPage() {
 
             {/* Plan cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {VISIBLE_PLANS.map(plan => {
+              {visiblePlans().map(plan => {
                 const isSelected = selected === plan.key
                 return (
                   <button
@@ -611,6 +685,12 @@ export default function SignupPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
+                    )}
+
+                    {plan.badge && (
+                      <span className="inline-block mb-2 px-3 py-1 rounded-full bg-gold/20 border border-gold/40 font-sans text-[10px] uppercase tracking-[3px] text-navy">
+                        {plan.badge}
+                      </span>
                     )}
 
                     <p className="font-playfair text-navy text-xl mb-1">{plan.name}</p>
@@ -679,7 +759,9 @@ export default function SignupPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-playfair text-navy text-xl">{selectedPlan.name}</p>
-                  <p className="font-cormorant italic text-text-soft text-base">First month</p>
+                  <p className="font-cormorant italic text-text-soft text-base">
+                    {isPromoSelected ? '6 months, paid once — does not auto-renew' : 'First month'}
+                  </p>
                 </div>
                 <p className="font-playfair text-navy text-2xl">{selectedPlan.price}</p>
               </div>
